@@ -1,0 +1,3 @@
+[
+    { action = "copy", src = "./files/test.rcl", dest = "/tmp/test.conf" }
+]

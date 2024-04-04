@@ -1,0 +1,12 @@
+[package]
+name = "lapon-node"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rcl               = { workspace = true }
+clap              = { workspace = true }
+serde             = { workspace = true }
+anyhow            = { workspace = true }
+bincode           = { workspace = true }
+crossbeam-channel = { workspace = true }

@@ -1,0 +1,10 @@
+[
+    {
+        hosts = "production",
+        remote_user = "dz",
+        actions = [
+            { action = "copy", src = "/tmp/test.rcl", dest = "/tmp/test.conf" },
+            { action = "job", job = "job1" },
+        ],
+    },
+]

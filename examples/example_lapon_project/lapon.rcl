@@ -1,0 +1,27 @@
+{
+    groups = {
+        production = {
+            hosts = [
+                { host = "127.0.0.1" },
+            ],
+            vars = {
+                var1 = "val1",
+                var2 = "val2",
+                var3 = "val3",
+            },
+        },
+        group1 = {
+            hosts = [
+                { group = "production" },
+                {
+                    host = "machine1", 
+                    vars = {
+                        var1 = "val1",
+                        var2 = "val2",
+                        var3 = "val3",
+                    },
+                },
+            ]
+        },
+    },
+}

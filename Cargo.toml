@@ -1,0 +1,46 @@
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+
+[package]
+name = "lapon-workspace"
+version.workspace = true
+edition.workspace = true
+default-run  = "lapon"
+
+[[bin]]
+name = "lapon"
+path = "lapon/src/main.rs"
+
+[[bin]]
+name = "lapon-node"
+path = "lapon-node/src/main.rs"
+
+[[bin]]
+name = "lapon-lsp"
+path = "lapon-lsp/src/main.rs"
+
+[dependencies]
+clap              = { workspace = true }
+anyhow            = { workspace = true }
+lapon             = { workspace = true }
+lapon-node        = { workspace = true }
+
+[workspace]
+members = [
+  "lapon",
+  "lapon-node",
+  "lapon-lsp",
+]
+
+[workspace.dependencies]
+lapon             = { path = "./lapon" }
+lapon-node        = { path = "./lapon-node" }
+clap              = { version = "4.5.0", default-features = false, features = ["std", "help", "usage", "derive"] }
+crossbeam-channel = { version = "0.5.11" }
+strum             = { version = "0.26.2" }
+strum_macros      = { version = "0.26.2" }
+serde             = { version = "1.0.197", features = ["derive"] }
+bincode           = "1.3.3"
+anyhow            = "1.0.81"
+rcl               = { git = "https://github.com/ruuda/rcl", rev = "6bb68da8ef1ef36f8a38453e7832efb498dc082e" }
