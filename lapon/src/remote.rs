@@ -89,23 +89,22 @@ pub fn start_remote(remote: SshRemote) -> Result<(Sender<NodeMessage>, Receiver<
 
     // ! Below paths have to be synced with what is
     // ! returned by Config::proxy_directory()
-    let remote_proxy_path = match platform {
+    let lapon_node_path = match platform {
         HostPlatform::Windows => "%HOMEDRIVE%%HOMEPATH%\\AppData\\Local\\lapon\\lapon\\data",
         HostPlatform::Darwin => "~/Library/Application\\ Support/dev.lapon.lapon",
         _ => "~/.local/share/lapon",
     };
 
-    let remote_proxy_file = match platform {
-        HostPlatform::Windows => format!(
-            "{remote_proxy_path}\\lapon-{}.exe",
-            env!("CARGO_PKG_VERSION")
-        ),
-        _ => format!("{remote_proxy_path}/lapon-{}", env!("CARGO_PKG_VERSION")),
+    let lapon_node_file = match platform {
+        HostPlatform::Windows => {
+            format!("{lapon_node_path}\\lapon-{}.exe", env!("CARGO_PKG_VERSION"))
+        }
+        _ => format!("{lapon_node_path}/lapon-{}", env!("CARGO_PKG_VERSION")),
     };
 
     if !remote
         .command_builder()
-        .args([&remote_proxy_file, "--version"])
+        .args([&lapon_node_file, "--version"])
         .output()
         .map(|output| {
             String::from_utf8_lossy(&output.stdout).trim()
@@ -117,8 +116,8 @@ pub fn start_remote(remote: SshRemote) -> Result<(Sender<NodeMessage>, Receiver<
             &remote,
             &platform,
             &architecture,
-            remote_proxy_path,
-            &remote_proxy_file,
+            lapon_node_path,
+            &lapon_node_file,
         )?;
     };
 
@@ -127,13 +126,13 @@ pub fn start_remote(remote: SshRemote) -> Result<(Sender<NodeMessage>, Receiver<
         HostPlatform::Windows => remote
             .command_builder()
             .args(["cmd", "/c"])
-            .arg(&remote_proxy_file)
+            .arg(&lapon_node_file)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?,
         _ => remote
             .command_builder()
-            .arg(&remote_proxy_file)
+            .arg(&lapon_node_file)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?,
@@ -178,8 +177,8 @@ fn download_remote(
     remote: &SshRemote,
     platform: &HostPlatform,
     architecture: &HostArchitecture,
-    remote_proxy_path: &str,
-    remote_proxy_file: &str,
+    lapon_node_path: &str,
+    lapon_node_file: &str,
 ) -> Result<()> {
     let url = format!(
         "https://github.com/lapce/lapon/releases/download/v{}/lapon-node-{}-{platform}-{architecture}.gz",
@@ -191,7 +190,7 @@ fn download_remote(
         .args([
             "mkdir",
             "-p",
-            remote_proxy_path,
+            lapon_node_path,
             "&&",
             "curl",
             "-L",
@@ -200,7 +199,11 @@ fn download_remote(
             "gzip",
             "-d",
             ">",
-            remote_proxy_file,
+            lapon_node_file,
+            "&&",
+            "chmod",
+            "+x",
+            lapon_node_file,
         ])
         .output()?;
     Ok(())
