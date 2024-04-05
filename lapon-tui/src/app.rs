@@ -4,9 +4,7 @@ use lapon_common::action::ActionMessage;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Style, Stylize},
-    text::{Line, Text},
-    widgets::{Block, Borders, Paragraph, Widget},
+    widgets::{Block, Borders, List, Widget},
     Frame,
 };
 use uuid::Uuid;
@@ -129,9 +127,6 @@ impl App {
 
 impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let counter_text = Text::from(vec![Line::from(vec!["This is the first task This is the first task This is the first task This is the first task".into()])
-            .style(Style::default().on_gray())]);
-
         let layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(vec![
@@ -143,12 +138,17 @@ impl Widget for &App {
 
         if let Some(run) = self.runs.first() {
             run.render(layout[1], buf);
+            List::new(run.hosts.iter().map(|host| host.host.clone()))
+                .block(Block::default().borders(Borders::RIGHT))
+                .render(layout[0], buf);
         }
-        Paragraph::new(counter_text.clone())
-            .block(Block::default().borders(Borders::RIGHT))
-            .render(layout[0], buf);
-        Paragraph::new(counter_text)
-            .block(Block::default().borders(Borders::LEFT))
-            .render(layout[2], buf);
+        List::new(
+            self.runs
+                .iter()
+                .enumerate()
+                .map(|(i, run)| run.name.clone().unwrap_or_else(|| format!("Run {}", i + 1))),
+        )
+        .block(Block::default().borders(Borders::LEFT))
+        .render(layout[2], buf);
     }
 }

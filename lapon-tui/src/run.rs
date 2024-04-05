@@ -14,6 +14,7 @@ use crate::reflow::{LineComposer, WordWrapper, WrappedLine};
 
 pub struct HostSection {
     pub id: Uuid,
+    pub host: String,
     pub actions: Vec<ActionSection>,
     pub scroll: u16,
 }
@@ -82,12 +83,13 @@ impl ActionSection {
 
 pub struct RunPanel {
     pub id: Uuid,
+    pub name: Option<String>,
     pub hosts: Vec<HostSection>,
 }
 
 impl RunPanel {
-    pub fn new(id: Uuid, hosts: Vec<HostSection>) -> Self {
-        Self { id, hosts }
+    pub fn new(id: Uuid, name: Option<String>, hosts: Vec<HostSection>) -> Self {
+        Self { id, name, hosts }
     }
 
     pub fn render(&self, area: Rect, buf: &mut Buffer) {
@@ -106,9 +108,10 @@ const fn get_line_offset(line_width: u16, text_area_width: u16, alignment: Align
 }
 
 impl HostSection {
-    pub fn new(id: Uuid, actions: Vec<ActionSection>) -> Self {
+    pub fn new(id: Uuid, host: String, actions: Vec<ActionSection>) -> Self {
         Self {
             id,
+            host,
             actions,
             scroll: 0,
         }

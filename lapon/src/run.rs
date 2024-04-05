@@ -156,6 +156,7 @@ impl Run {
             .map(|host| {
                 HostSection::new(
                     host.id,
+                    host.host.clone(),
                     self.actions
                         .iter()
                         .map(|action| ActionSection::new(action.id, action.name.clone()))
@@ -163,6 +164,6 @@ impl Run {
                 )
             })
             .collect();
-        RunPanel::new(self.id, hosts)
+        RunPanel::new(self.id, None, hosts)
     }
 }
