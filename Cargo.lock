@@ -233,7 +233,7 @@ checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 
 [[package]]
 name = "lapon"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -251,7 +251,7 @@ dependencies = [
 
 [[package]]
 name = "lapon-common"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "rcl",
@@ -261,11 +261,11 @@ dependencies = [
 
 [[package]]
 name = "lapon-lsp"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "lapon-node"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -279,7 +279,7 @@ dependencies = [
 
 [[package]]
 name = "lapon-tui"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
@@ -294,7 +294,7 @@ dependencies = [
 
 [[package]]
 name = "lapon-workspace"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "clap",
