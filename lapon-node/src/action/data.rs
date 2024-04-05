@@ -39,6 +39,15 @@ pub fn parse_value(cwd: &Path, value: &Value) -> Result<Vec<ActionData>> {
             return Err(anyhow!("action key should be string"));
         };
 
+        let name = if let Some(name) = dict.get(&Value::String("name".into())) {
+            let Value::String(name) = name else {
+                return Err(anyhow!("name should be string"));
+            };
+            Some(name.to_string())
+        } else {
+            None
+        };
+
         if action_name.as_ref() == "job" {
             let Some(params) = dict.get(&Value::String("params".into())) else {
                 return Err(anyhow!("job needs params"));
@@ -62,7 +71,8 @@ pub fn parse_value(cwd: &Path, value: &Value) -> Result<Vec<ActionData>> {
             let input = action.input(cwd, params)?;
             actions.push(ActionData {
                 id: ActionId::new(),
-                name: action_name.to_string(),
+                name: name.unwrap_or_else(|| action_name.to_string()),
+                action: action_name.to_string(),
                 input,
             });
         }

@@ -74,11 +74,11 @@ fn node_run_action(
     data: &ActionData,
     tx: &Sender<ActionMessage>,
 ) -> Result<String> {
-    let result = if let Some(action) = all_actions.get(&data.name) {
+    let result = if let Some(action) = all_actions.get(&data.action) {
         let _ = tx.send(ActionMessage::ActionStarted { id: data.id });
         action.execute(data.id, &data.input, tx)?
     } else {
-        return Err(anyhow!("can't find action name {}", data.name));
+        return Err(anyhow!("can't find action name {}", data.action));
     };
     Ok(result)
 }

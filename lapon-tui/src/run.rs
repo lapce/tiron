@@ -30,10 +30,18 @@ impl HostSection {
     }
 
     fn render(&self, area: Rect, buf: &mut Buffer) {
+        let area = Rect::new(
+            area.left() + 1,
+            area.top() + 1,
+            area.width.saturating_sub(2),
+            area.height.saturating_sub(2),
+        );
+
         let mut y = 0;
 
         for action in &self.actions {
             action.render(area, buf, &mut y, self.scroll);
+            y += 1;
             if y >= area.height + self.scroll {
                 break;
             }
@@ -130,6 +138,7 @@ impl ActionSection {
             Color::Gray
         };
         self.render_line(area, buf, y, scroll, &self.name, None, Some(bg));
+        *y += 1;
         if self.folded {
             return;
         }

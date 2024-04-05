@@ -31,6 +31,7 @@ pub enum ActionMessage {
 pub struct ActionData {
     pub id: ActionId,
     pub name: String,
+    pub action: String,
     pub input: Vec<u8>,
 }
 

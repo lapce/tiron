@@ -3,14 +3,10 @@ use crossbeam_channel::{Receiver, Sender};
 use lapon_common::action::ActionMessage;
 use ratatui::{
     buffer::Buffer,
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Style, Stylize},
-    symbols,
     text::{Line, Text},
-    widgets::{
-        block::{Position, Title},
-        Block, Borders, Paragraph, Tabs, Widget,
-    },
+    widgets::{Block, Borders, Paragraph, Widget},
     Frame,
 };
 use uuid::Uuid;
@@ -133,54 +129,26 @@ impl App {
 
 impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let title = Title::from(" Counter App Tutorial ".bold());
-        let instructions = Title::from(Line::from(vec![
-            " Decrement ".blue(),
-            "<Left>".into(),
-            " Increment ".into(),
-            "<Right>".into(),
-            " Quit ".into(),
-            "<Q> ".into(),
-        ]));
-        let block = Block::default()
-            .title(title.alignment(Alignment::Center))
-            .title(
-                instructions
-                    .alignment(Alignment::Center)
-                    .position(Position::Bottom),
-            )
-            .borders(Borders::ALL);
-
         let counter_text = Text::from(vec![Line::from(vec!["This is the first task This is the first task This is the first task This is the first task".into()])
             .style(Style::default().on_gray())]);
 
         let layout = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints(vec![Constraint::Length(20), Constraint::Fill(1)])
+            .constraints(vec![
+                Constraint::Length(20),
+                Constraint::Fill(1),
+                Constraint::Length(20),
+            ])
             .split(area);
 
-        // Paragraph::new(counter_text.clone())
-        //     .wrap(Wrap { trim: false })
-        //     // .on_gray()
-        //     .block(block.clone())
-        //     .scroll((self.scroll_offset.0, 0))
-        //     .render(layout[1], buf);
-        // let mut run = RunPanel::new();
-        // run.actions.push(ActionSection::new("This is the first task This is the first task This is the first task This is the first task".to_string()));
-        // run.render(layout[1], buf);
         if let Some(run) = self.runs.first() {
             run.render(layout[1], buf);
         }
-        Paragraph::new(counter_text)
-            .block(block)
+        Paragraph::new(counter_text.clone())
+            .block(Block::default().borders(Borders::RIGHT))
             .render(layout[0], buf);
-
-        Tabs::new(vec!["Tab1", "Tab2", "Tab3", "Tab4"])
-            .block(Block::default().title("Tabs").borders(Borders::ALL))
-            .style(Style::default().white())
-            .highlight_style(Style::default().yellow())
-            .select(2)
-            .divider(symbols::DOT)
-            .padding("->", "<-");
+        Paragraph::new(counter_text)
+            .block(Block::default().borders(Borders::LEFT))
+            .render(layout[2], buf);
     }
 }

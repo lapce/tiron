@@ -130,8 +130,8 @@ impl Run {
 
         let all_actions = all_actions();
         for action_data in &self.actions {
-            let Some(_) = all_actions.get(&action_data.name) else {
-                return Err(anyhow!("action {} can't be found", action_data.name));
+            let Some(_) = all_actions.get(&action_data.action) else {
+                return Err(anyhow!("action {} can't be found", action_data.action));
             };
             for (tx, _) in &senders {
                 tx.send(NodeMessage::Action(action_data.clone()))?;
