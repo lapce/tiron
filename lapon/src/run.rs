@@ -1,30 +1,47 @@
 use std::{collections::HashMap, path::Path};
 
 use anyhow::{anyhow, Result};
-use lapon_node::{
-    action::{all_actions, ActionData},
+use crossbeam_channel::Sender;
+use lapon_common::{
+    action::{ActionData, ActionMessage},
     node::NodeMessage,
 };
+use lapon_node::action::data::{self, all_actions};
+use lapon_tui::{
+    event::AppEvent,
+    run::{ActionSection, HostSection, RunPanel},
+};
 use rcl::runtime::Value;
+use uuid::Uuid;
 
 use crate::{
     config::{Config, HostConfig},
+    local::start_local,
     remote::{start_remote, SshHost, SshRemote},
 };
 
 pub struct Run {
+    id: Uuid,
+    tx: Sender<AppEvent>,
     hosts: Vec<HostConfig>,
     remote_user: Option<String>,
     actions: Vec<ActionData>,
 }
 
 impl Run {
-    pub fn from_value(cwd: &Path, config: &Config, value: &Value) -> Result<Self> {
+    pub fn from_value(
+        cwd: &Path,
+        config: &Config,
+        value: &Value,
+        tx: &Sender<AppEvent>,
+    ) -> Result<Self> {
         let Value::Dict(value) = value else {
             return Err(anyhow!("run should be a dict"));
         };
 
         let mut run = Run {
+            id: Uuid::new_v4(),
+            tx: tx.clone(),
             hosts: Vec::new(),
             remote_user: None,
             actions: Vec::new(),
@@ -45,6 +62,7 @@ impl Run {
             };
         } else {
             run.hosts.push(HostConfig {
+                id: Uuid::new_v4(),
                 host: "localhost".to_string(),
                 vars: HashMap::new(),
             });
@@ -58,7 +76,7 @@ impl Run {
         }
 
         if let Some(value) = value.get(&Value::String("actions".into())) {
-            let actions = ActionData::parse_value(cwd, value)?;
+            let actions = data::parse_value(cwd, value)?;
             run.actions = actions;
         }
 
@@ -69,13 +87,45 @@ impl Run {
         let mut senders = Vec::new();
 
         for host in &self.hosts {
-            senders.push(start_remote(SshRemote {
-                ssh: SshHost {
-                    host: host.host.clone(),
-                    port: None,
-                    user: self.remote_user.clone(),
-                },
-            })?);
+            let (tx, rx) = if host.host == "localhost" || host.host == "127.0.0.1" {
+                start_local()
+            } else {
+                start_remote(SshRemote {
+                    ssh: SshHost {
+                        host: host.host.clone(),
+                        port: None,
+                        user: self.remote_user.clone(),
+                    },
+                })?
+            };
+            let (exit_tx, exit_rx) = crossbeam_channel::bounded::<()>(1);
+
+            {
+                let tx = self.tx.clone();
+                let run_id = self.id;
+                let host_id = host.id;
+                std::thread::spawn(move || {
+                    while let Ok(msg) = rx.recv() {
+                        if let ActionMessage::NodeShutdown = &msg {
+                            let _ = tx.send(AppEvent::Action {
+                                run: run_id,
+                                host: host_id,
+                                msg,
+                            });
+                            let _ = exit_tx.send(());
+                            return;
+                        }
+                        let _ = tx.send(AppEvent::Action {
+                            run: run_id,
+                            host: host_id,
+                            msg,
+                        });
+                    }
+                    let _ = exit_tx.send(());
+                });
+            }
+
+            senders.push((tx, exit_rx))
         }
 
         let all_actions = all_actions();
@@ -92,10 +142,27 @@ impl Run {
             tx.send(NodeMessage::Shutdown)?;
         }
 
-        for (_, rx) in &senders {
-            let _ = rx.recv();
-        }
+        // for (_, rx) in &senders {
+        //     let _ = rx.recv();
+        // }
 
         Ok(())
+    }
+
+    pub fn to_panel(&self) -> RunPanel {
+        let hosts = self
+            .hosts
+            .iter()
+            .map(|host| {
+                HostSection::new(
+                    host.id,
+                    self.actions
+                        .iter()
+                        .map(|action| ActionSection::new(action.id, action.name.clone()))
+                        .collect(),
+                )
+            })
+            .collect();
+        RunPanel::new(self.id, hosts)
     }
 }

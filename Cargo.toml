@@ -29,18 +29,25 @@ lapon-node        = { workspace = true }
 [workspace]
 members = [
   "lapon",
-  "lapon-node",
+  "lapon-tui",
   "lapon-lsp",
+  "lapon-node",
+  "lapon-common",
 ]
 
 [workspace.dependencies]
-lapon             = { path = "./lapon" }
-lapon-node        = { path = "./lapon-node" }
+ratatui           = "0.26.1"
+crossterm         = "0.27.0"
+bincode           = "1.3.3"
+anyhow            = "1.0.81"
+uuid              = { version = "1.8.0", features = ["serde", "v4"] }
 clap              = { version = "4.5.0", default-features = false, features = ["std", "help", "usage", "derive"] }
 crossbeam-channel = { version = "0.5.11" }
 strum             = { version = "0.26.2" }
 strum_macros      = { version = "0.26.2" }
 serde             = { version = "1.0.197", features = ["derive"] }
-bincode           = "1.3.3"
-anyhow            = "1.0.81"
 rcl               = { git = "https://github.com/ruuda/rcl", rev = "6bb68da8ef1ef36f8a38453e7832efb498dc082e" }
+lapon             = { path = "./lapon" }
+lapon-tui         = { path = "./lapon-tui" }
+lapon-node        = { path = "./lapon-node" }
+lapon-common      = { path = "./lapon-common" }

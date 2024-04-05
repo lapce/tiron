@@ -2,7 +2,7 @@
     groups = {
         production = {
             hosts = [
-                { host = "127.0.0.1" },
+                { host = "localhost" },
             ],
             vars = {
                 var1 = "val1",

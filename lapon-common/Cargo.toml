@@ -1,0 +1,10 @@
+[package]
+name = "lapon-common"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow               = { workspace = true }
+serde                = { workspace = true }
+rcl                  = { workspace = true }
+uuid                 = { workspace = true }

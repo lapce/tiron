@@ -1,9 +1,10 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Result};
+use lapon_common::action::ActionData;
 use rcl::markup::MarkupMode;
 
-use crate::action::ActionData;
+use crate::action::data;
 
 pub struct Job {}
 
@@ -36,7 +37,7 @@ impl Job {
                 )
             })?;
 
-        let actions = ActionData::parse_value(parent, &value)?;
+        let actions = data::parse_value(parent, &value)?;
 
         Ok(actions)
     }

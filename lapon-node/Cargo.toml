@@ -4,9 +4,11 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+uuid              = { workspace = true }
 rcl               = { workspace = true }
 clap              = { workspace = true }
 serde             = { workspace = true }
 anyhow            = { workspace = true }
 bincode           = { workspace = true }
 crossbeam-channel = { workspace = true }
+lapon-common      = { workspace = true }

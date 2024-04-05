@@ -11,5 +11,8 @@ strum_macros      = { workspace = true }
 serde             = { workspace = true }
 bincode           = { workspace = true }
 anyhow            = { workspace = true }
+uuid              = { workspace = true }
 rcl               = { workspace = true }
+lapon-tui         = { workspace = true }
 lapon-node        = { workspace = true }
+lapon-common      = { workspace = true }

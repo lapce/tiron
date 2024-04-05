@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Result};
+use crossbeam_channel::Sender;
+use lapon_tui::event::AppEvent;
 use rcl::{markup::MarkupMode, runtime::Value};
 
 use crate::{cli::Cli, config::Config, run::Run};
@@ -14,20 +16,26 @@ pub fn start(cli: &Cli) -> Result<()> {
         cli.runbooks.clone()
     };
 
+    let mut app = lapon_tui::app::App::new();
+
     let runs: Result<Vec<Vec<Run>>> = runbooks
         .iter()
-        .map(|name| parse_runbook(name, &config))
+        .map(|name| parse_runbook(name, &config, &app.tx))
         .collect();
     let runs: Vec<Run> = runs?.into_iter().flatten().collect();
+
+    app.runs = runs.iter().map(|run| run.to_panel()).collect();
 
     for run in runs {
         run.execute()?;
     }
 
+    app.start()?;
+
     Ok(())
 }
 
-fn parse_runbook(name: &str, config: &Config) -> Result<Vec<Run>> {
+fn parse_runbook(name: &str, config: &Config, tx: &Sender<AppEvent>) -> Result<Vec<Run>> {
     let file_name = if !name.ends_with(".rcl") {
         format!("{name}.rcl")
     } else {
@@ -69,7 +77,7 @@ fn parse_runbook(name: &str, config: &Config) -> Result<Vec<Run>> {
 
     let runs: Result<Vec<Run>> = runs
         .iter()
-        .map(|v| Run::from_value(cwd, config, v))
+        .map(|v| Run::from_value(cwd, config, v, tx))
         .collect();
     let runs = runs?;
 

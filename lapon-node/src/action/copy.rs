@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
+use crossbeam_channel::Sender;
+use lapon_common::action::{ActionId, ActionMessage};
 use rcl::runtime::Value;
 use serde::{Deserialize, Serialize};
 
@@ -13,13 +15,15 @@ pub struct CopyActionInput {
     dest: String,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
-pub struct CopyAction {}
+pub struct CopyAction;
 
 impl Action for CopyAction {
-    fn input(&self, cwd: &Path, value: &Value) -> Result<Vec<u8>> {
+    fn input(&self, cwd: &Path, params: Option<&Value>) -> Result<Vec<u8>> {
+        let Some(value) = params else {
+            return Err(anyhow!("can't find params"));
+        };
         let Value::Dict(dict) = value else {
-            return Err(anyhow!("input should be a Dict"));
+            return Err(anyhow!("params should be a Dict"));
         };
         let Some(src) = dict.get(&Value::String("src".into())) else {
             return Err(anyhow!("can't find src"));
@@ -54,7 +58,7 @@ impl Action for CopyAction {
         Ok(input)
     }
 
-    fn execute(&self, bytes: &[u8]) -> Result<String> {
+    fn execute(&self, _id: ActionId, bytes: &[u8], _tx: &Sender<ActionMessage>) -> Result<String> {
         let input: CopyActionInput = bincode::deserialize(bytes)?;
         let dest = PathBuf::from(&input.dest);
         std::fs::write(dest, input.content)

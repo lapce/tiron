@@ -5,10 +5,8 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
-use lapon_node::{
-    node::{CoreMessage, NodeMessage},
-    stdio::stdio_transport,
-};
+use lapon_common::{action::ActionMessage, node::NodeMessage};
+use lapon_node::stdio::stdio_transport;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
@@ -76,7 +74,7 @@ impl SshRemote {
     }
 }
 
-pub fn start_remote(remote: SshRemote) -> Result<(Sender<NodeMessage>, Receiver<()>)> {
+pub fn start_remote(remote: SshRemote) -> Result<(Sender<NodeMessage>, Receiver<ActionMessage>)> {
     let (platform, architecture) = host_specification(&remote)?;
 
     if platform == HostPlatform::UnknownOS {
@@ -149,28 +147,10 @@ pub fn start_remote(remote: SshRemote) -> Result<(Sender<NodeMessage>, Receiver<
     );
 
     let (writer_tx, writer_rx) = crossbeam_channel::unbounded::<NodeMessage>();
-    let (reader_tx, reader_rx) = crossbeam_channel::unbounded::<CoreMessage>();
+    let (reader_tx, reader_rx) = crossbeam_channel::unbounded::<ActionMessage>();
     stdio_transport(stdin, writer_rx, stdout, reader_tx);
 
-    let (exit_tx, exit_rx) = crossbeam_channel::bounded::<()>(1);
-
-    std::thread::spawn(move || {
-        while let Ok(msg) = reader_rx.recv() {
-            match msg {
-                CoreMessage::ActionResult(name, result) => {
-                    println!("run action {name} result: {result}");
-                }
-                CoreMessage::NodeShutdown => {
-                    let _ = exit_tx.send(());
-                    return;
-                }
-            }
-        }
-        println!("remote finished");
-        let _ = exit_tx.send(());
-    });
-
-    Ok((writer_tx, exit_rx))
+    Ok((writer_tx, reader_rx))
 }
 
 fn download_remote(
@@ -280,7 +260,7 @@ fn host_specification(remote: &SshRemote) -> Result<(HostPlatform, HostArchitect
 fn parse_arch(arch: &str) -> HostArchitecture {
     use HostArchitecture::*;
     // processor architectures be like that
-    match arch {
+    match arch.to_lowercase().as_str() {
         "amd64" | "x64" | "x86_64" => AMD64,
         "x86" | "i386" | "i586" | "i686" => X86,
         "arm" | "armhf" | "armv6" => ARM32v6,
@@ -292,7 +272,7 @@ fn parse_arch(arch: &str) -> HostArchitecture {
 
 fn parse_os(os: &str) -> HostPlatform {
     use HostPlatform::*;
-    match os {
+    match os.to_lowercase().as_str() {
         "linux" => Linux,
         "darwin" => Darwin,
         "windows_nt" => Windows,

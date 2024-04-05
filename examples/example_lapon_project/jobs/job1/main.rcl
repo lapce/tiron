@@ -1,3 +1,25 @@
 [
-    { action = "copy", src = "./files/test.rcl", dest = "/tmp/test.conf" }
+    { 
+        action = "copy",
+        params = {
+            src = "./files/test.rcl", 
+            dest = "/tmp/test.conf" 
+        }
+    },
+    {
+        name = "Install httpd and mariadb",
+        action = "package", 
+        params = {
+            name = ["httpd", "mariadb-connector-c"], 
+            state = "latest",
+        },
+    },
+    { 
+        name = "Install ntpdate",
+        action = "package",
+        params = {
+            name = "ntpdate",
+            state = "present",
+        }
+    },
 ]
