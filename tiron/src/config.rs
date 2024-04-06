@@ -4,14 +4,12 @@ use std::{
 };
 
 use anyhow::{anyhow, Context, Result};
+use crossbeam_channel::Sender;
 use rcl::{markup::MarkupMode, runtime::Value};
+use tiron_tui::event::AppEvent;
 use uuid::Uuid;
 
-pub struct HostConfig {
-    pub id: Uuid,
-    pub host: String,
-    pub vars: HashMap<String, String>,
-}
+use crate::node::Node;
 
 pub enum HostOrGroup {
     Host(String),
@@ -29,11 +27,12 @@ pub struct GroupConfig {
 }
 
 pub struct Config {
+    tx: Sender<AppEvent>,
     groups: HashMap<String, GroupConfig>,
 }
 
 impl Config {
-    pub fn load() -> Result<Config> {
+    pub fn load(tx: &Sender<AppEvent>) -> Result<Config> {
         let path = match std::env::current_dir() {
             Ok(path) => path.join("tiron.rcl"),
             Err(_) => PathBuf::from("tiron.rcl"),
@@ -64,6 +63,7 @@ impl Config {
         };
 
         let mut config = Config {
+            tx: tx.clone(),
             groups: HashMap::new(),
         };
 
@@ -207,7 +207,7 @@ impl Config {
         Ok(host_config)
     }
 
-    pub fn hosts_from_name(&self, name: &str) -> Result<Vec<HostConfig>> {
+    pub fn hosts_from_name(&self, name: &str) -> Result<Vec<Node>> {
         if self.groups.contains_key(name) {
             return self.hosts_from_group(name);
         } else {
@@ -215,10 +215,13 @@ impl Config {
                 for host in &group.hosts {
                     if let HostOrGroup::Host(host_name) = &host.host {
                         if host_name == name {
-                            return Ok(vec![HostConfig {
+                            return Ok(vec![Node {
                                 id: Uuid::new_v4(),
                                 host: host_name.to_string(),
                                 vars: host.vars.clone(),
+                                remote_user: None,
+                                actions: Vec::new(),
+                                tx: self.tx.clone(),
                             }]);
                         }
                     }
@@ -228,7 +231,7 @@ impl Config {
         Err(anyhow!("can't find host with name {name}"))
     }
 
-    fn hosts_from_group(&self, group: &str) -> Result<Vec<HostConfig>> {
+    fn hosts_from_group(&self, group: &str) -> Result<Vec<Node>> {
         let Some(group) = self.groups.get(group) else {
             return Err(anyhow!("hosts doesn't have group {group}"));
         };
@@ -237,10 +240,13 @@ impl Config {
         for host_or_group in &group.hosts {
             let mut local_hosts = match &host_or_group.host {
                 HostOrGroup::Host(name) => {
-                    let host_config = HostConfig {
+                    let host_config = Node {
                         id: Uuid::new_v4(),
                         host: name.to_string(),
                         vars: host_or_group.vars.clone(),
+                        remote_user: None,
+                        actions: Vec::new(),
+                        tx: self.tx.clone(),
                     };
                     vec![host_config]
                 }

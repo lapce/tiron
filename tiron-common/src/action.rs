@@ -18,6 +18,7 @@ impl ActionId {
 
 #[derive(Deserialize, Serialize)]
 pub enum ActionMessage {
+    NodeStartFailed { reason: String },
     ActionStarted { id: ActionId },
     ActionStdout { id: ActionId, content: String },
     ActionStderr { id: ActionId, content: String },

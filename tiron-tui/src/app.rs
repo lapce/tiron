@@ -156,6 +156,9 @@ impl App {
             ActionMessage::NodeShutdown { success } => {
                 host.success = Some(success);
             }
+            ActionMessage::NodeStartFailed { reason } => {
+                host.start_failed = Some(reason);
+            }
         }
         Ok(())
     }

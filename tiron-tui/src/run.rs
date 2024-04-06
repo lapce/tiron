@@ -19,6 +19,7 @@ pub struct HostSection {
     pub actions: Vec<ActionSection>,
     pub scroll: u16,
     pub success: Option<bool>,
+    pub start_failed: Option<String>,
 }
 
 impl HostSection {
@@ -41,6 +42,19 @@ impl HostSection {
         );
 
         let mut y = 0;
+
+        if let Some(reason) = &self.start_failed {
+            render_line(
+                area,
+                buf,
+                &mut y,
+                self.scroll,
+                &format!("host start failed: {reason}"),
+                Some(Color::Red),
+                None,
+            );
+            y += 1;
+        }
 
         for action in &self.actions {
             action.render(area, buf, &mut y, self.scroll);
@@ -106,8 +120,14 @@ impl RunPanel {
         }
     }
 
+    fn get_active_host(&self) -> Result<&HostSection> {
+        let active = self.active.min(self.hosts.len().saturating_sub(1));
+        let host = self.hosts.get(active).ok_or_else(|| anyhow!("no host"))?;
+        Ok(host)
+    }
+
     pub fn render(&self, area: Rect, buf: &mut Buffer) {
-        if let Some(host) = self.hosts.first() {
+        if let Ok(host) = self.get_active_host() {
             host.render(area, buf);
         }
     }
@@ -146,6 +166,7 @@ impl HostSection {
             actions,
             scroll: 0,
             success: None,
+            start_failed: None,
         }
     }
 }
@@ -172,7 +193,7 @@ impl ActionSection {
         } else {
             Color::Gray
         };
-        self.render_line(area, buf, y, scroll, &self.name, None, Some(bg));
+        render_line(area, buf, y, scroll, &self.name, None, Some(bg));
         *y += 1;
         if self.folded {
             return;
@@ -186,71 +207,70 @@ impl ActionSection {
                 ActionOutputLevel::Warn => Some(Color::Yellow),
                 ActionOutputLevel::Error => Some(Color::Red),
             };
-            self.render_line(area, buf, y, scroll, &line.content, fg, None);
+            render_line(area, buf, y, scroll, &line.content, fg, None);
             if *y >= area.height + scroll {
                 return;
             }
         }
     }
+}
 
-    #[allow(clippy::too_many_arguments)]
-    fn render_line(
-        &self,
-        area: Rect,
-        buf: &mut Buffer,
-        y: &mut u16,
-        scroll: u16,
-        line: &str,
-        fg: Option<Color>,
-        bg: Option<Color>,
-    ) {
-        let style = Style::default();
-        let style = if let Some(fg) = fg {
-            style.fg(fg)
-        } else {
-            style
-        };
-        let mut line_composer = WordWrapper::new(
-            vec![(
-                line.graphemes(true)
-                    .map(move |g| StyledGrapheme { symbol: g, style }),
-                Alignment::Left,
-            )]
-            .into_iter(),
-            area.width,
-            false,
-        );
+#[allow(clippy::too_many_arguments)]
+fn render_line(
+    area: Rect,
+    buf: &mut Buffer,
+    y: &mut u16,
+    scroll: u16,
+    line: &str,
+    fg: Option<Color>,
+    bg: Option<Color>,
+) {
+    let style = Style::default();
+    let style = if let Some(fg) = fg {
+        style.fg(fg)
+    } else {
+        style
+    };
+    let mut line_composer = WordWrapper::new(
+        vec![(
+            line.graphemes(true)
+                .map(move |g| StyledGrapheme { symbol: g, style }),
+            Alignment::Left,
+        )]
+        .into_iter(),
+        area.width,
+        false,
+    );
 
-        while let Some(WrappedLine {
-            line: current_line,
-            width: current_line_width,
-            alignment: current_line_alignment,
-        }) = line_composer.next_line()
-        {
-            if *y >= scroll {
-                if let Some(bg) = bg {
-                    let area = Rect::new(area.left(), area.top() + *y - scroll, area.width, 1);
-                    buf.set_style(area, Style::default().bg(bg));
-                }
-                let mut x = get_line_offset(current_line_width, area.width, current_line_alignment);
-                for StyledGrapheme { symbol, style } in current_line {
-                    let width = symbol.width();
-                    if width == 0 {
-                        continue;
-                    }
-                    // If the symbol is empty, the last char which rendered last time will
-                    // leave on the line. It's a quick fix.
-                    let symbol = if symbol.is_empty() { " " } else { symbol };
-                    buf.get_mut(area.left() + x, area.top() + *y - scroll)
-                        .set_symbol(symbol)
-                        .set_style(*style);
-                    x += width as u16;
-                }
+    while let Some(WrappedLine {
+        line: current_line,
+        width: current_line_width,
+        alignment: current_line_alignment,
+    }) = line_composer.next_line()
+    {
+        if *y >= scroll {
+            if let Some(bg) = bg {
+                let area = Rect::new(area.left(), area.top() + *y - scroll, area.width, 1);
+                buf.set_style(area, Style::default().bg(bg));
             }
-            *y += 1;
-            if *y >= area.height + scroll {
-                break;
+            let mut x = get_line_offset(current_line_width, area.width, current_line_alignment);
+            for StyledGrapheme { symbol, style } in current_line {
+                let width = symbol.width();
+                if width == 0 {
+                    continue;
+                }
+                // If the symbol is empty, the last char which rendered last time will
+                // leave on the line. It's a quick fix.
+                let symbol = if symbol.is_empty() { " " } else { symbol };
+                buf.get_mut(area.left() + x, area.top() + *y - scroll)
+                    .set_symbol(symbol)
+                    .set_style(*style);
+                x += width as u16;
             }
+        }
+        *y += 1;
+        if *y >= area.height + scroll {
+            break;
         }
     }
 }

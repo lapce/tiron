@@ -3,30 +3,20 @@ use std::{collections::HashMap, path::Path};
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
 use rcl::runtime::Value;
-use tiron_common::{
-    action::{ActionData, ActionMessage},
-    node::NodeMessage,
-};
-use tiron_node::action::data;
 use tiron_tui::{
     event::AppEvent,
     run::{ActionSection, HostSection, RunPanel},
 };
 use uuid::Uuid;
 
-use crate::{
-    config::{Config, HostConfig},
-    local::start_local,
-    remote::{start_remote, SshHost, SshRemote},
-};
+use crate::{action::parse_actions, config::Config, node::Node};
 
 pub struct Run {
     pub id: Uuid,
     name: Option<String>,
     tx: Sender<AppEvent>,
-    hosts: Vec<HostConfig>,
+    hosts: Vec<Node>,
     remote_user: Option<String>,
-    actions: Vec<ActionData>,
 }
 
 impl Run {
@@ -46,7 +36,6 @@ impl Run {
             tx: tx.clone(),
             hosts: Vec::new(),
             remote_user: None,
-            actions: Vec::new(),
         };
 
         if let Some(name) = value.get(&Value::String("name".into())) {
@@ -70,10 +59,13 @@ impl Run {
                 return Err(anyhow!("hosts should be either string or list"));
             };
         } else {
-            run.hosts.push(HostConfig {
+            run.hosts.push(Node {
                 id: Uuid::new_v4(),
                 host: "localhost".to_string(),
                 vars: HashMap::new(),
+                remote_user: None,
+                actions: Vec::new(),
+                tx: run.tx.clone(),
             });
         }
 
@@ -84,72 +76,34 @@ impl Run {
             run.remote_user = Some(remote_user.to_string());
         }
 
-        if let Some(value) = value.get(&Value::String("actions".into())) {
-            let actions = data::parse_value(cwd, value)?;
-            run.actions = actions;
+        let Some(value) = value.get(&Value::String("actions".into())) else {
+            return Err(anyhow!("run should have actions"));
+        };
+
+        for host in run.hosts.iter_mut() {
+            let actions = parse_actions(cwd, value, &host.vars)?;
+            host.actions = actions;
         }
 
         Ok(run)
     }
 
     pub fn execute(&self) -> Result<bool> {
-        let mut senders = Vec::new();
+        let mut receivers = Vec::new();
 
         for host in &self.hosts {
-            let (tx, rx) = if host.host == "localhost" || host.host == "127.0.0.1" {
-                start_local()
-            } else {
-                start_remote(SshRemote {
-                    ssh: SshHost {
-                        host: host.host.clone(),
-                        port: None,
-                        user: self.remote_user.clone(),
-                    },
-                })?
-            };
             let (exit_tx, exit_rx) = crossbeam_channel::bounded::<bool>(1);
+            let host = host.clone();
+            let run_id = self.id;
+            std::thread::spawn(move || {
+                let _ = host.execute(run_id, exit_tx);
+            });
 
-            {
-                let tx = self.tx.clone();
-                let run_id = self.id;
-                let host_id = host.id;
-                std::thread::spawn(move || {
-                    while let Ok(msg) = rx.recv() {
-                        if let ActionMessage::NodeShutdown { success } = &msg {
-                            let success = *success;
-                            let _ = tx.send(AppEvent::Action {
-                                run: run_id,
-                                host: host_id,
-                                msg,
-                            });
-                            let _ = exit_tx.send(success);
-                            return;
-                        }
-                        let _ = tx.send(AppEvent::Action {
-                            run: run_id,
-                            host: host_id,
-                            msg,
-                        });
-                    }
-                    let _ = exit_tx.send(false);
-                });
-            }
-
-            senders.push((tx, exit_rx))
-        }
-
-        for action_data in &self.actions {
-            for (tx, _) in &senders {
-                tx.send(NodeMessage::Action(action_data.clone()))?;
-            }
-        }
-
-        for (tx, _) in &senders {
-            tx.send(NodeMessage::Shutdown)?;
+            receivers.push(exit_rx)
         }
 
         let mut errors = 0;
-        for (_, rx) in &senders {
+        for rx in &receivers {
             let result = rx.recv();
             if result != Ok(true) {
                 errors += 1;
@@ -167,7 +121,7 @@ impl Run {
                 HostSection::new(
                     host.id,
                     host.host.clone(),
-                    self.actions
+                    host.actions
                         .iter()
                         .map(|action| ActionSection::new(action.id, action.name.clone()))
                         .collect(),

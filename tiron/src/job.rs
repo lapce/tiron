@@ -1,15 +1,18 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{anyhow, Result};
 use rcl::markup::MarkupMode;
 use tiron_common::action::ActionData;
 
-use crate::action::data;
+use crate::action::parse_actions;
 
 pub struct Job {}
 
 impl Job {
-    pub fn load(cwd: &Path, name: &str) -> Result<Vec<ActionData>> {
+    pub fn load(cwd: &Path, name: &str, vars: &HashMap<String, String>) -> Result<Vec<ActionData>> {
         let (content, path) = Self::load_file(cwd, name)?;
         let parent = path.parent().ok_or_else(|| {
             anyhow!(
@@ -37,7 +40,7 @@ impl Job {
                 )
             })?;
 
-        let actions = data::parse_value(parent, &value)?;
+        let actions = parse_actions(parent, &value, vars)?;
 
         Ok(actions)
     }

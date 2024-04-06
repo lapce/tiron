@@ -8,15 +8,14 @@ use tiron_tui::event::{AppEvent, RunEvent};
 use crate::{cli::Cli, config::Config, run::Run};
 
 pub fn start(cli: &Cli) -> Result<()> {
-    let config = Config::load()?;
+    let mut app = tiron_tui::app::App::new();
+    let config = Config::load(&app.tx)?;
 
     let runbooks = if cli.runbooks.is_empty() {
         vec!["main".to_string()]
     } else {
         cli.runbooks.clone()
     };
-
-    let mut app = tiron_tui::app::App::new();
 
     let runs: Result<Vec<Vec<Run>>> = runbooks
         .iter()

@@ -206,10 +206,51 @@ fn host_specification(remote: &SshRemote) -> Result<(HostPlatform, HostArchitect
                 // If empty, then we probably deal with Windows and not Unix
                 // or something went wrong with command output
                 "" => {
-                    // Try cmd explicitly
+                    let (os, arch) = host_specification_try_windows(remote)?;
+                    if os != UnknownOS && arch != UnknownArch {
+                        (os, arch)
+                    } else {
+                        return Err(anyhow!(String::from_utf8_lossy(&cmd.stderr).to_string()));
+                    }
+                }
+                v => {
+                    if let Some((os, arch)) = v.split_once(' ') {
+                        let os = parse_os(os);
+                        let arch = parse_arch(arch);
+                        if os == UnknownOS || arch == UnknownArch {
+                            return Err(anyhow!(v.to_string()));
+                        }
+                        (os, arch)
+                    } else {
+                        return Err(anyhow!(v.to_string()));
+                    }
+                }
+            }
+        }
+        Err(e) => return Err(anyhow!(e)),
+    };
+    Ok(spec)
+}
+
+fn host_specification_try_windows(remote: &SshRemote) -> Result<(HostPlatform, HostArchitecture)> {
+    use HostArchitecture::*;
+    use HostPlatform::*;
+    // Try cmd explicitly
+    let cmd = remote
+        .command_builder()
+        .args(["cmd", "/c", "echo %OS% %PROCESSOR_ARCHITECTURE%"])
+        .output();
+    let spec = match cmd {
+        Ok(cmd) => {
+            let stdout = String::from_utf8_lossy(&cmd.stdout).to_lowercase();
+            let stdout = stdout.trim();
+            match stdout.split_once(' ') {
+                Some((os, arch)) => (parse_os(os), parse_arch(arch)),
+                None => {
+                    // PowerShell fallback
                     let cmd = remote
                         .command_builder()
-                        .args(["cmd", "/c", "echo %OS% %PROCESSOR_ARCHITECTURE%"])
+                        .args(["echo", "\"${env:OS} ${env:PROCESSOR_ARCHITECTURE}\""])
                         .output();
                     match cmd {
                         Ok(cmd) => {
@@ -217,40 +258,10 @@ fn host_specification(remote: &SshRemote) -> Result<(HostPlatform, HostArchitect
                             let stdout = stdout.trim();
                             match stdout.split_once(' ') {
                                 Some((os, arch)) => (parse_os(os), parse_arch(arch)),
-                                None => {
-                                    // PowerShell fallback
-                                    let cmd = remote
-                                        .command_builder()
-                                        .args([
-                                            "echo",
-                                            "\"${env:OS} ${env:PROCESSOR_ARCHITECTURE}\"",
-                                        ])
-                                        .output();
-                                    match cmd {
-                                        Ok(cmd) => {
-                                            let stdout =
-                                                String::from_utf8_lossy(&cmd.stdout).to_lowercase();
-                                            let stdout = stdout.trim();
-                                            match stdout.split_once(' ') {
-                                                Some((os, arch)) => {
-                                                    (parse_os(os), parse_arch(arch))
-                                                }
-                                                None => (UnknownOS, UnknownArch),
-                                            }
-                                        }
-                                        Err(_) => (UnknownOS, UnknownArch),
-                                    }
-                                }
+                                None => (UnknownOS, UnknownArch),
                             }
                         }
                         Err(_) => (UnknownOS, UnknownArch),
-                    }
-                }
-                v => {
-                    if let Some((os, arch)) = v.split_once(' ') {
-                        (parse_os(os), parse_arch(arch))
-                    } else {
-                        (UnknownOS, UnknownArch)
                     }
                 }
             }
