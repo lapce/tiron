@@ -19,5 +19,5 @@ pub enum UserInputEvent {
 
 pub enum RunEvent {
     RunStarted { id: Uuid },
-    RunCompleted { id: Uuid },
+    RunCompleted { id: Uuid, success: bool },
 }

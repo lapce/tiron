@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::Sender;
-use lapon_tui::event::AppEvent;
+use lapon_tui::event::{AppEvent, RunEvent};
 use rcl::{markup::MarkupMode, runtime::Value};
 
 use crate::{cli::Cli, config::Config, run::Run};
@@ -26,9 +26,21 @@ pub fn start(cli: &Cli) -> Result<()> {
 
     app.runs = runs.iter().map(|run| run.to_panel()).collect();
 
-    for run in runs {
-        run.execute()?;
-    }
+    let tx = app.tx.clone();
+    std::thread::spawn(move || -> Result<()> {
+        for run in runs {
+            let _ = tx.send(AppEvent::Run(RunEvent::RunStarted { id: run.id }));
+            let success = run.execute()?;
+            let _ = tx.send(AppEvent::Run(RunEvent::RunCompleted {
+                id: run.id,
+                success,
+            }));
+            if !success {
+                break;
+            }
+        }
+        Ok(())
+    });
 
     app.start()?;
 

@@ -22,7 +22,7 @@ pub enum ActionMessage {
     ActionStdout { id: ActionId, content: String },
     ActionStderr { id: ActionId, content: String },
     ActionResult { id: ActionId, success: bool },
-    NodeShutdown,
+    NodeShutdown { success: bool },
 }
 
 /// ActionData is the data that's being sent from core to node

@@ -6,7 +6,7 @@ use lapon_common::{
     action::{ActionData, ActionMessage},
     node::NodeMessage,
 };
-use lapon_node::action::data::{self, all_actions};
+use lapon_node::action::data;
 use lapon_tui::{
     event::AppEvent,
     run::{ActionSection, HostSection, RunPanel},
@@ -21,7 +21,8 @@ use crate::{
 };
 
 pub struct Run {
-    id: Uuid,
+    pub id: Uuid,
+    name: Option<String>,
     tx: Sender<AppEvent>,
     hosts: Vec<HostConfig>,
     remote_user: Option<String>,
@@ -41,11 +42,19 @@ impl Run {
 
         let mut run = Run {
             id: Uuid::new_v4(),
+            name: None,
             tx: tx.clone(),
             hosts: Vec::new(),
             remote_user: None,
             actions: Vec::new(),
         };
+
+        if let Some(name) = value.get(&Value::String("name".into())) {
+            let Value::String(name) = name else {
+                return Err(anyhow!("name should be string"));
+            };
+            run.name = Some(name.to_string());
+        }
 
         if let Some(value) = value.get(&Value::String("hosts".into())) {
             if let Value::String(v) = value {
@@ -83,7 +92,7 @@ impl Run {
         Ok(run)
     }
 
-    pub fn execute(&self) -> Result<()> {
+    pub fn execute(&self) -> Result<bool> {
         let mut senders = Vec::new();
 
         for host in &self.hosts {
@@ -98,7 +107,7 @@ impl Run {
                     },
                 })?
             };
-            let (exit_tx, exit_rx) = crossbeam_channel::bounded::<()>(1);
+            let (exit_tx, exit_rx) = crossbeam_channel::bounded::<bool>(1);
 
             {
                 let tx = self.tx.clone();
@@ -106,13 +115,14 @@ impl Run {
                 let host_id = host.id;
                 std::thread::spawn(move || {
                     while let Ok(msg) = rx.recv() {
-                        if let ActionMessage::NodeShutdown = &msg {
+                        if let ActionMessage::NodeShutdown { success } = &msg {
+                            let success = *success;
                             let _ = tx.send(AppEvent::Action {
                                 run: run_id,
                                 host: host_id,
                                 msg,
                             });
-                            let _ = exit_tx.send(());
+                            let _ = exit_tx.send(success);
                             return;
                         }
                         let _ = tx.send(AppEvent::Action {
@@ -121,18 +131,14 @@ impl Run {
                             msg,
                         });
                     }
-                    let _ = exit_tx.send(());
+                    let _ = exit_tx.send(false);
                 });
             }
 
             senders.push((tx, exit_rx))
         }
 
-        let all_actions = all_actions();
         for action_data in &self.actions {
-            let Some(_) = all_actions.get(&action_data.action) else {
-                return Err(anyhow!("action {} can't be found", action_data.action));
-            };
             for (tx, _) in &senders {
                 tx.send(NodeMessage::Action(action_data.clone()))?;
             }
@@ -142,11 +148,15 @@ impl Run {
             tx.send(NodeMessage::Shutdown)?;
         }
 
-        // for (_, rx) in &senders {
-        //     let _ = rx.recv();
-        // }
+        let mut errors = 0;
+        for (_, rx) in &senders {
+            let result = rx.recv();
+            if result != Ok(true) {
+                errors += 1;
+            }
+        }
 
-        Ok(())
+        Ok(errors == 0)
     }
 
     pub fn to_panel(&self) -> RunPanel {
@@ -164,6 +174,6 @@ impl Run {
                 )
             })
             .collect();
-        RunPanel::new(self.id, None, hosts)
+        RunPanel::new(self.id, self.name.clone(), hosts)
     }
 }

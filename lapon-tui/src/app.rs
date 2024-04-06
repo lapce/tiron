@@ -10,7 +10,7 @@ use ratatui::{
 use uuid::Uuid;
 
 use crate::{
-    event::{AppEvent, UserInputEvent},
+    event::{AppEvent, RunEvent, UserInputEvent},
     run::RunPanel,
     tui,
 };
@@ -71,7 +71,9 @@ impl App {
             AppEvent::Action { run, host, msg } => {
                 self.handle_action_event(run, host, msg)?;
             }
-            AppEvent::Run(_event) => {}
+            AppEvent::Run(event) => {
+                self.handle_run_event(event)?;
+            }
         };
         Ok(())
     }
@@ -115,9 +117,35 @@ impl App {
                 let action = host.get_action(id)?;
                 action.success(success);
             }
-            ActionMessage::NodeShutdown => {}
+            ActionMessage::NodeShutdown { success } => {
+                host.success = Some(success);
+            }
         }
         Ok(())
+    }
+
+    fn handle_run_event(&mut self, event: RunEvent) -> Result<()> {
+        match event {
+            RunEvent::RunStarted { id } => {
+                let run = self.get_run(id)?;
+                run.started = true;
+            }
+            RunEvent::RunCompleted { id, success } => {
+                let run = self.get_run(id)?;
+                run.success = Some(success);
+            }
+        }
+        Ok(())
+    }
+
+    fn get_run(&mut self, id: Uuid) -> Result<&mut RunPanel> {
+        let run = self
+            .runs
+            .iter_mut()
+            .rev()
+            .find(|p| p.id == id)
+            .ok_or_else(|| anyhow!("can't find run"))?;
+        Ok(run)
     }
 
     fn exit(&mut self) {

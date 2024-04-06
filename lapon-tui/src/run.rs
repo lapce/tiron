@@ -17,6 +17,7 @@ pub struct HostSection {
     pub host: String,
     pub actions: Vec<ActionSection>,
     pub scroll: u16,
+    pub success: Option<bool>,
 }
 
 impl HostSection {
@@ -85,11 +86,19 @@ pub struct RunPanel {
     pub id: Uuid,
     pub name: Option<String>,
     pub hosts: Vec<HostSection>,
+    pub started: bool,
+    pub success: Option<bool>,
 }
 
 impl RunPanel {
     pub fn new(id: Uuid, name: Option<String>, hosts: Vec<HostSection>) -> Self {
-        Self { id, name, hosts }
+        Self {
+            id,
+            name,
+            hosts,
+            started: false,
+            success: None,
+        }
     }
 
     pub fn render(&self, area: Rect, buf: &mut Buffer) {
@@ -114,6 +123,7 @@ impl HostSection {
             host,
             actions,
             scroll: 0,
+            success: None,
         }
     }
 }

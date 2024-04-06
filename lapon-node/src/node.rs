@@ -50,7 +50,7 @@ pub fn mainloop(rx: Receiver<NodeMessage>, tx: Sender<ActionMessage>) -> Result<
                     })?;
                 }
                 Err(e) => {
-                    tx.send(ActionMessage::ActionStdout {
+                    tx.send(ActionMessage::ActionStderr {
                         id: action.id,
                         content: format!("error: {e:#}"),
                     })?;
@@ -59,10 +59,11 @@ pub fn mainloop(rx: Receiver<NodeMessage>, tx: Sender<ActionMessage>) -> Result<
                         id: action.id,
                         success: false,
                     })?;
+                    tx.send(ActionMessage::NodeShutdown { success: false })?;
                 }
             },
             NodeMessage::Shutdown => {
-                tx.send(ActionMessage::NodeShutdown)?;
+                tx.send(ActionMessage::NodeShutdown { success: true })?;
             }
         }
     }
