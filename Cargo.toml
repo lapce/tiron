@@ -3,36 +3,36 @@ version = "0.1.1"
 edition = "2021"
 
 [package]
-name = "lapon-workspace"
+name = "tiron-workspace"
 version.workspace = true
 edition.workspace = true
-default-run  = "lapon"
+default-run  = "tiron"
 
 [[bin]]
-name = "lapon"
-path = "lapon/src/main.rs"
+name = "tiron"
+path = "tiron/src/main.rs"
 
 [[bin]]
-name = "lapon-node"
-path = "lapon-node/src/main.rs"
+name = "tiron-node"
+path = "tiron-node/src/main.rs"
 
 [[bin]]
-name = "lapon-lsp"
-path = "lapon-lsp/src/main.rs"
+name = "tiron-lsp"
+path = "tiron-lsp/src/main.rs"
 
 [dependencies]
 clap              = { workspace = true }
 anyhow            = { workspace = true }
-lapon             = { workspace = true }
-lapon-node        = { workspace = true }
+tiron             = { workspace = true }
+tiron-node        = { workspace = true }
 
 [workspace]
 members = [
-  "lapon",
-  "lapon-tui",
-  "lapon-lsp",
-  "lapon-node",
-  "lapon-common",
+  "tiron",
+  "tiron-tui",
+  "tiron-lsp",
+  "tiron-node",
+  "tiron-common",
 ]
 
 [workspace.dependencies]
@@ -47,7 +47,7 @@ strum             = { version = "0.26.2" }
 strum_macros      = { version = "0.26.2" }
 serde             = { version = "1.0.197", features = ["derive"] }
 rcl               = { git = "https://github.com/ruuda/rcl", rev = "6bb68da8ef1ef36f8a38453e7832efb498dc082e" }
-lapon             = { path = "./lapon" }
-lapon-tui         = { path = "./lapon-tui" }
-lapon-node        = { path = "./lapon-node" }
-lapon-common      = { path = "./lapon-common" }
+tiron             = { path = "./tiron" }
+tiron-tui         = { path = "./tiron-tui" }
+tiron-node        = { path = "./tiron-node" }
+tiron-common      = { path = "./tiron-common" }

@@ -1,6 +1,0 @@
-[package]
-name = "lapon-lsp"
-version.workspace = true
-edition.workspace = true
-
-[dependencies]

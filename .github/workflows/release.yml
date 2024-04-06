@@ -2,8 +2,8 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      lapon_version:
-        description: "Lapon version for release"
+      tiron_version:
+        description: "Tiron version for release"
         required: true
   push:
     tags:
@@ -31,40 +31,40 @@ jobs:
       - name: Fetch dependencies
         run: cargo fetch --locked
         
-      - name: Build lapon
+      - name: Build tiron
         run: |
-          RUSTFLAGS="-C linker=aarch64-linux-gnu-gcc" cargo build -p lapon --release --locked --target aarch64-unknown-linux-gnu
-          cargo build -p lapon --release --locked --target x86_64-unknown-linux-gnu
+          RUSTFLAGS="-C linker=aarch64-linux-gnu-gcc" cargo build -p tiron --release --locked --target aarch64-unknown-linux-gnu
+          cargo build -p tiron --release --locked --target x86_64-unknown-linux-gnu
         
-      - name: Build lapon-node
+      - name: Build tiron-node
         run: |
-          RUSTFLAGS="-C linker=aarch64-linux-gnu-gcc" cargo build -p lapon-node --release --locked --target aarch64-unknown-linux-gnu
-          cargo build -p lapon-node --release --locked --target x86_64-unknown-linux-gnu
+          RUSTFLAGS="-C linker=aarch64-linux-gnu-gcc" cargo build -p tiron-node --release --locked --target aarch64-unknown-linux-gnu
+          cargo build -p tiron-node --release --locked --target x86_64-unknown-linux-gnu
         
-      - name: Build lapon-lsp
+      - name: Build tiron-lsp
         run: |
-          RUSTFLAGS="-C linker=aarch64-linux-gnu-gcc" cargo build -p lapon-lsp --release --locked --target aarch64-unknown-linux-gnu
-          cargo build -p lapon-lsp --release --locked --target x86_64-unknown-linux-gnu
+          RUSTFLAGS="-C linker=aarch64-linux-gnu-gcc" cargo build -p tiron-lsp --release --locked --target aarch64-unknown-linux-gnu
+          cargo build -p tiron-lsp --release --locked --target x86_64-unknown-linux-gnu
         
       - name: Gzip
         run: |
-          gzip -c ./target/x86_64-unknown-linux-gnu/release/lapon > ./lapon-${{ github.event.inputs.lapon_version }}-linux-amd64.gz
-          gzip -c ./target/aarch64-unknown-linux-gnu/release/lapon > ./lapon-${{ github.event.inputs.lapon_version }}-linux-arm64.gz
-          gzip -c ./target/x86_64-unknown-linux-gnu/release/lapon-node > ./lapon-node-${{ github.event.inputs.lapon_version }}-linux-amd64.gz
-          gzip -c ./target/aarch64-unknown-linux-gnu/release/lapon-node > ./lapon-node-${{ github.event.inputs.lapon_version }}-linux-arm64.gz
-          gzip -c ./target/x86_64-unknown-linux-gnu/release/lapon-lsp > ./lapon-lsp-${{ github.event.inputs.lapon_version }}-linux-amd64.gz
-          gzip -c ./target/aarch64-unknown-linux-gnu/release/lapon-lsp > ./lapon-lsp-${{ github.event.inputs.lapon_version }}-linux-arm64.gz
+          gzip -c ./target/x86_64-unknown-linux-gnu/release/tiron > ./tiron-${{ github.event.inputs.tiron_version }}-linux-amd64.gz
+          gzip -c ./target/aarch64-unknown-linux-gnu/release/tiron > ./tiron-${{ github.event.inputs.tiron_version }}-linux-arm64.gz
+          gzip -c ./target/x86_64-unknown-linux-gnu/release/tiron-node > ./tiron-node-${{ github.event.inputs.tiron_version }}-linux-amd64.gz
+          gzip -c ./target/aarch64-unknown-linux-gnu/release/tiron-node > ./tiron-node-${{ github.event.inputs.tiron_version }}-linux-arm64.gz
+          gzip -c ./target/x86_64-unknown-linux-gnu/release/tiron-lsp > ./tiron-lsp-${{ github.event.inputs.tiron_version }}-linux-amd64.gz
+          gzip -c ./target/aarch64-unknown-linux-gnu/release/tiron-lsp > ./tiron-lsp-${{ github.event.inputs.tiron_version }}-linux-arm64.gz
       
       - uses: actions/upload-artifact@v4
         with:
-          name: lapon-linux
+          name: tiron-linux
           path: |
-            ./lapon-${{ github.event.inputs.lapon_version }}-linux-amd64.gz
-            ./lapon-${{ github.event.inputs.lapon_version }}-linux-arm64.gz
-            ./lapon-node-${{ github.event.inputs.lapon_version }}-linux-amd64.gz
-            ./lapon-node-${{ github.event.inputs.lapon_version }}-linux-arm64.gz
-            ./lapon-lsp-${{ github.event.inputs.lapon_version }}-linux-amd64.gz
-            ./lapon-lsp-${{ github.event.inputs.lapon_version }}-linux-arm64.gz
+            ./tiron-${{ github.event.inputs.tiron_version }}-linux-amd64.gz
+            ./tiron-${{ github.event.inputs.tiron_version }}-linux-arm64.gz
+            ./tiron-node-${{ github.event.inputs.tiron_version }}-linux-amd64.gz
+            ./tiron-node-${{ github.event.inputs.tiron_version }}-linux-arm64.gz
+            ./tiron-lsp-${{ github.event.inputs.tiron_version }}-linux-amd64.gz
+            ./tiron-lsp-${{ github.event.inputs.tiron_version }}-linux-arm64.gz
           retention-days: 1
         
   macos:
@@ -84,67 +84,67 @@ jobs:
       - name: Fetch dependencies
         run: cargo fetch --locked
         
-      - name: Build lapon
+      - name: Build tiron
         run: |
-          cargo build -p lapon --release --locked --target aarch64-apple-darwin
-          cargo build -p lapon --release --locked --target x86_64-apple-darwin
+          cargo build -p tiron --release --locked --target aarch64-apple-darwin
+          cargo build -p tiron --release --locked --target x86_64-apple-darwin
           
-      - name: Build lapon-node
+      - name: Build tiron-node
         run: |
-          cargo build -p lapon-node --release --locked --target aarch64-apple-darwin
-          cargo build -p lapon-node --release --locked --target x86_64-apple-darwin
+          cargo build -p tiron-node --release --locked --target aarch64-apple-darwin
+          cargo build -p tiron-node --release --locked --target x86_64-apple-darwin
         
-      - name: Build lapon-lsp
+      - name: Build tiron-lsp
         run: |
-          cargo build -p lapon-lsp --release --locked --target aarch64-apple-darwin
-          cargo build -p lapon-lsp --release --locked --target x86_64-apple-darwin
+          cargo build -p tiron-lsp --release --locked --target aarch64-apple-darwin
+          cargo build -p tiron-lsp --release --locked --target x86_64-apple-darwin
           
       - name: codesign
         run: |
-          /usr/bin/codesign -vvv --deep --strict --options=runtime --force -s ADD049AE64FD743A8E91A47525EFED47153971CB ./target/x86_64-apple-darwin/release/lapon
-          /usr/bin/codesign -vvv --deep --strict --options=runtime --force -s ADD049AE64FD743A8E91A47525EFED47153971CB ./target/aarch64-apple-darwin/release/lapon
-          /usr/bin/codesign -vvv --deep --strict --options=runtime --force -s ADD049AE64FD743A8E91A47525EFED47153971CB ./target/x86_64-apple-darwin/release/lapon-node
-          /usr/bin/codesign -vvv --deep --strict --options=runtime --force -s ADD049AE64FD743A8E91A47525EFED47153971CB ./target/aarch64-apple-darwin/release/lapon-node
-          /usr/bin/codesign -vvv --deep --strict --options=runtime --force -s ADD049AE64FD743A8E91A47525EFED47153971CB ./target/x86_64-apple-darwin/release/lapon-lsp
-          /usr/bin/codesign -vvv --deep --strict --options=runtime --force -s ADD049AE64FD743A8E91A47525EFED47153971CB ./target/aarch64-apple-darwin/release/lapon-lsp
+          /usr/bin/codesign -vvv --deep --strict --options=runtime --force -s ADD049AE64FD743A8E91A47525EFED47153971CB ./target/x86_64-apple-darwin/release/tiron
+          /usr/bin/codesign -vvv --deep --strict --options=runtime --force -s ADD049AE64FD743A8E91A47525EFED47153971CB ./target/aarch64-apple-darwin/release/tiron
+          /usr/bin/codesign -vvv --deep --strict --options=runtime --force -s ADD049AE64FD743A8E91A47525EFED47153971CB ./target/x86_64-apple-darwin/release/tiron-node
+          /usr/bin/codesign -vvv --deep --strict --options=runtime --force -s ADD049AE64FD743A8E91A47525EFED47153971CB ./target/aarch64-apple-darwin/release/tiron-node
+          /usr/bin/codesign -vvv --deep --strict --options=runtime --force -s ADD049AE64FD743A8E91A47525EFED47153971CB ./target/x86_64-apple-darwin/release/tiron-lsp
+          /usr/bin/codesign -vvv --deep --strict --options=runtime --force -s ADD049AE64FD743A8E91A47525EFED47153971CB ./target/aarch64-apple-darwin/release/tiron-lsp
           
       - name: Notarize Release Build
         uses: lando/notarize-action@v2
         with:
-          product-path: "./target/x86_64-apple-darwin/release/lapon"
+          product-path: "./target/x86_64-apple-darwin/release/tiron"
           appstore-connect-username: ${{ secrets.NOTARIZE_USERNAME }}
           appstore-connect-password: ${{ secrets.NOTARIZE_PASSWORD }}
           appstore-connect-team-id: CYSGAZFR8D
-          primary-bundle-id: "io.lapon"
+          primary-bundle-id: "io.tiron"
           
       - name: Notarize Release Build
         uses: lando/notarize-action@v2
         with:
-          product-path: "./target/aarch64-apple-darwin/release/lapon"
+          product-path: "./target/aarch64-apple-darwin/release/tiron"
           appstore-connect-username: ${{ secrets.NOTARIZE_USERNAME }}
           appstore-connect-password: ${{ secrets.NOTARIZE_PASSWORD }}
           appstore-connect-team-id: CYSGAZFR8D
-          primary-bundle-id: "io.lapon"
+          primary-bundle-id: "io.tiron"
         
       - name: Gzip
         run: |
-          gzip -c ./target/x86_64-apple-darwin/release/lapon > ./lapon-${{ github.event.inputs.lapon_version }}-darwin-amd64.gz
-          gzip -c ./target/aarch64-apple-darwin/release/lapon > ./lapon-${{ github.event.inputs.lapon_version }}-darwin-arm64.gz
-          gzip -c ./target/x86_64-apple-darwin/release/lapon-node > ./lapon-node-${{ github.event.inputs.lapon_version }}-darwin-amd64.gz
-          gzip -c ./target/aarch64-apple-darwin/release/lapon-node > ./lapon-node-${{ github.event.inputs.lapon_version }}-darwin-arm64.gz
-          gzip -c ./target/x86_64-apple-darwin/release/lapon-lsp > ./lapon-lsp-${{ github.event.inputs.lapon_version }}-darwin-amd64.gz
-          gzip -c ./target/aarch64-apple-darwin/release/lapon-lsp > ./lapon-lsp-${{ github.event.inputs.lapon_version }}-darwin-arm64.gz
+          gzip -c ./target/x86_64-apple-darwin/release/tiron > ./tiron-${{ github.event.inputs.tiron_version }}-darwin-amd64.gz
+          gzip -c ./target/aarch64-apple-darwin/release/tiron > ./tiron-${{ github.event.inputs.tiron_version }}-darwin-arm64.gz
+          gzip -c ./target/x86_64-apple-darwin/release/tiron-node > ./tiron-node-${{ github.event.inputs.tiron_version }}-darwin-amd64.gz
+          gzip -c ./target/aarch64-apple-darwin/release/tiron-node > ./tiron-node-${{ github.event.inputs.tiron_version }}-darwin-arm64.gz
+          gzip -c ./target/x86_64-apple-darwin/release/tiron-lsp > ./tiron-lsp-${{ github.event.inputs.tiron_version }}-darwin-amd64.gz
+          gzip -c ./target/aarch64-apple-darwin/release/tiron-lsp > ./tiron-lsp-${{ github.event.inputs.tiron_version }}-darwin-arm64.gz
       
       - uses: actions/upload-artifact@v4
         with:
-          name: lapon-macos
+          name: tiron-macos
           path: |
-            ./lapon-${{ github.event.inputs.lapon_version }}-darwin-amd64.gz
-            ./lapon-${{ github.event.inputs.lapon_version }}-darwin-arm64.gz
-            ./lapon-node-${{ github.event.inputs.lapon_version }}-darwin-amd64.gz
-            ./lapon-node-${{ github.event.inputs.lapon_version }}-darwin-arm64.gz
-            ./lapon-lsp-${{ github.event.inputs.lapon_version }}-darwin-amd64.gz
-            ./lapon-lsp-${{ github.event.inputs.lapon_version }}-darwin-arm64.gz
+            ./tiron-${{ github.event.inputs.tiron_version }}-darwin-amd64.gz
+            ./tiron-${{ github.event.inputs.tiron_version }}-darwin-arm64.gz
+            ./tiron-node-${{ github.event.inputs.tiron_version }}-darwin-amd64.gz
+            ./tiron-node-${{ github.event.inputs.tiron_version }}-darwin-arm64.gz
+            ./tiron-lsp-${{ github.event.inputs.tiron_version }}-darwin-amd64.gz
+            ./tiron-lsp-${{ github.event.inputs.tiron_version }}-darwin-arm64.gz
           retention-days: 1
 
   windows:
@@ -162,40 +162,40 @@ jobs:
       - name: Fetch dependencies
         run: cargo fetch --locked
         
-      - name: Build lapon
+      - name: Build tiron
         run: |
-          cargo build -p lapon --release --locked --target aarch64-pc-windows-msvc
-          cargo build -p lapon --release --locked --target x86_64-pc-windows-msvc
+          cargo build -p tiron --release --locked --target aarch64-pc-windows-msvc
+          cargo build -p tiron --release --locked --target x86_64-pc-windows-msvc
         
-      - name: Build lapon-node
+      - name: Build tiron-node
         run: |
-          cargo build -p lapon-node --release --locked --target aarch64-pc-windows-msvc
-          cargo build -p lapon-node --release --locked --target x86_64-pc-windows-msvc
+          cargo build -p tiron-node --release --locked --target aarch64-pc-windows-msvc
+          cargo build -p tiron-node --release --locked --target x86_64-pc-windows-msvc
         
-      - name: Build lapon-lsp
+      - name: Build tiron-lsp
         run: |
-          cargo build -p lapon-lsp --release --locked --target aarch64-pc-windows-msvc
-          cargo build -p lapon-lsp --release --locked --target x86_64-pc-windows-msvc
+          cargo build -p tiron-lsp --release --locked --target aarch64-pc-windows-msvc
+          cargo build -p tiron-lsp --release --locked --target x86_64-pc-windows-msvc
         
       - name: Gzip
         run: |
-          gzip -c ./target/x86_64-pc-windows-msvc/release/lapon > ./lapon-${{ github.event.inputs.lapon_version }}-windows-amd64.gz
-          gzip -c ./target/aarch64-pc-windows-msvc/release/lapon > ./lapon-${{ github.event.inputs.lapon_version }}-windows-arm64.gz
-          gzip -c ./target/x86_64-pc-windows-msvc/release/lapon-node > ./lapon-node-${{ github.event.inputs.lapon_version }}-windows-amd64.gz
-          gzip -c ./target/aarch64-pc-windows-msvc/release/lapon-node > ./lapon-node-${{ github.event.inputs.lapon_version }}-windows-arm64.gz
-          gzip -c ./target/x86_64-pc-windows-msvc/release/lapon-lsp > ./lapon-lsp-${{ github.event.inputs.lapon_version }}-windows-amd64.gz
-          gzip -c ./target/aarch64-pc-windows-msvc/release/lapon-lsp > ./lapon-lsp-${{ github.event.inputs.lapon_version }}-windows-arm64.gz
+          gzip -c ./target/x86_64-pc-windows-msvc/release/tiron > ./tiron-${{ github.event.inputs.tiron_version }}-windows-amd64.gz
+          gzip -c ./target/aarch64-pc-windows-msvc/release/tiron > ./tiron-${{ github.event.inputs.tiron_version }}-windows-arm64.gz
+          gzip -c ./target/x86_64-pc-windows-msvc/release/tiron-node > ./tiron-node-${{ github.event.inputs.tiron_version }}-windows-amd64.gz
+          gzip -c ./target/aarch64-pc-windows-msvc/release/tiron-node > ./tiron-node-${{ github.event.inputs.tiron_version }}-windows-arm64.gz
+          gzip -c ./target/x86_64-pc-windows-msvc/release/tiron-lsp > ./tiron-lsp-${{ github.event.inputs.tiron_version }}-windows-amd64.gz
+          gzip -c ./target/aarch64-pc-windows-msvc/release/tiron-lsp > ./tiron-lsp-${{ github.event.inputs.tiron_version }}-windows-arm64.gz
       
       - uses: actions/upload-artifact@v4
         with:
-          name: lapon-windows
+          name: tiron-windows
           path: |
-            ./lapon-${{ github.event.inputs.lapon_version }}-windows-amd64.gz
-            ./lapon-${{ github.event.inputs.lapon_version }}-windows-arm64.gz
-            ./lapon-node-${{ github.event.inputs.lapon_version }}-windows-amd64.gz
-            ./lapon-node-${{ github.event.inputs.lapon_version }}-windows-arm64.gz
-            ./lapon-lsp-${{ github.event.inputs.lapon_version }}-windows-amd64.gz
-            ./lapon-lsp-${{ github.event.inputs.lapon_version }}-windows-arm64.gz
+            ./tiron-${{ github.event.inputs.tiron_version }}-windows-amd64.gz
+            ./tiron-${{ github.event.inputs.tiron_version }}-windows-arm64.gz
+            ./tiron-node-${{ github.event.inputs.tiron_version }}-windows-amd64.gz
+            ./tiron-node-${{ github.event.inputs.tiron_version }}-windows-arm64.gz
+            ./tiron-lsp-${{ github.event.inputs.tiron_version }}-windows-amd64.gz
+            ./tiron-lsp-${{ github.event.inputs.tiron_version }}-windows-arm64.gz
           retention-days: 1
     
   
@@ -218,12 +218,12 @@ jobs:
       - uses: actions/download-artifact@v4
       
       - if: github.event_name == 'workflow_dispatch'
-        run: echo "TAG_NAME=v${{ github.event.inputs.lapon_version }}" >> $GITHUB_ENV
+        run: echo "TAG_NAME=v${{ github.event.inputs.tiron_version }}" >> $GITHUB_ENV
         
       - name: Publish release
         if: github.event_name != 'pull_request'
         run: |
           gh release create $TAG_NAME --title "$TAG_NAME" --target $GITHUB_SHA \
-            lapon-linux/* \
-            lapon-macos/* \
-            lapon-windows/* \
+            tiron-linux/* \
+            tiron-macos/* \
+            tiron-windows/* \

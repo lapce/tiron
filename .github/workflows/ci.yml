@@ -41,13 +41,13 @@ jobs:
         run: cargo fetch --locked
 
       - name: Build
-        run: cargo build -p lapon --frozen
+        run: cargo build -p tiron --frozen
 
       - name: Build node
-        run: cargo build -p lapon-node --frozen
+        run: cargo build -p tiron-node --frozen
 
       - name: Build lsp
-        run: cargo build -p lapon-lsp --frozen
+        run: cargo build -p tiron-lsp --frozen
 
       - name: Run tests
         run: cargo test --workspace

@@ -1,0 +1,15 @@
+[package]
+name = "tiron-tui"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+unicode-segmentation = "1.10"
+unicode-width        = "0.1"
+uuid                 = { workspace = true }
+ratatui              = { workspace = true }
+crossterm            = { workspace = true }
+anyhow               = { workspace = true }
+crossbeam-channel    = { workspace = true }
+tiron-node           = { workspace = true }
+tiron-common         = { workspace = true }

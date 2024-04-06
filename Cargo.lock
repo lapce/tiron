@@ -232,77 +232,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 
 [[package]]
-name = "lapon"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "bincode",
- "clap",
- "crossbeam-channel",
- "lapon-common",
- "lapon-node",
- "lapon-tui",
- "rcl",
- "serde",
- "strum",
- "strum_macros",
- "uuid",
-]
-
-[[package]]
-name = "lapon-common"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "rcl",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "lapon-lsp"
-version = "0.1.1"
-
-[[package]]
-name = "lapon-node"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "bincode",
- "clap",
- "crossbeam-channel",
- "lapon-common",
- "rcl",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "lapon-tui"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "crossbeam-channel",
- "crossterm",
- "lapon-common",
- "lapon-node",
- "ratatui",
- "unicode-segmentation",
- "unicode-width",
- "uuid",
-]
-
-[[package]]
-name = "lapon-workspace"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "clap",
- "lapon",
- "lapon-node",
-]
-
-[[package]]
 name = "libc"
 version = "0.2.153"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -567,6 +496,77 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "tiron"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "clap",
+ "crossbeam-channel",
+ "rcl",
+ "serde",
+ "strum",
+ "strum_macros",
+ "tiron-common",
+ "tiron-node",
+ "tiron-tui",
+ "uuid",
+]
+
+[[package]]
+name = "tiron-common"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "rcl",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "tiron-lsp"
+version = "0.1.1"
+
+[[package]]
+name = "tiron-node"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "clap",
+ "crossbeam-channel",
+ "rcl",
+ "serde",
+ "tiron-common",
+ "uuid",
+]
+
+[[package]]
+name = "tiron-tui"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "crossbeam-channel",
+ "crossterm",
+ "ratatui",
+ "tiron-common",
+ "tiron-node",
+ "unicode-segmentation",
+ "unicode-width",
+ "uuid",
+]
+
+[[package]]
+name = "tiron-workspace"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "tiron",
+ "tiron-node",
 ]
 
 [[package]]
