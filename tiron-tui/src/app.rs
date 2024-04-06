@@ -4,7 +4,7 @@ use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Stylize},
-    widgets::{Block, Borders, List, Widget},
+    widgets::{Block, Borders, List, ListState, Widget},
     Frame,
 };
 use tiron_common::action::ActionMessage;
@@ -18,9 +18,10 @@ use crate::{
 
 pub struct App {
     exit: bool,
+    list_state: ListState,
     pub runs: Vec<RunPanel>,
-    // the run panel that's currently in focus
-    pub focus: usize,
+    // the run panel that's currently active
+    pub active: usize,
     pub tx: Sender<AppEvent>,
     rx: Receiver<AppEvent>,
 }
@@ -36,8 +37,9 @@ impl App {
         let (tx, rx) = crossbeam_channel::unbounded();
         Self {
             exit: false,
+            list_state: ListState::default(),
             runs: Vec::new(),
-            focus: 0,
+            active: 0,
             tx,
             rx,
         }
@@ -62,7 +64,7 @@ impl App {
         Ok(())
     }
 
-    fn render_frame(&self, frame: &mut Frame) {
+    fn render_frame(&mut self, frame: &mut Frame) {
         frame.render_widget(self, frame.size());
     }
 
@@ -87,17 +89,33 @@ impl App {
             UserInputEvent::ScrollUp => {}
             UserInputEvent::ScrollDown => {}
             UserInputEvent::PrevRun => {
-                if self.focus == 0 {
-                    self.focus = self.runs.len().saturating_sub(1);
+                if self.active == 0 {
+                    self.active = self.runs.len().saturating_sub(1);
                 } else {
-                    self.focus -= 1;
+                    self.active -= 1;
                 }
             }
             UserInputEvent::NextRun => {
-                if self.focus == self.runs.len().saturating_sub(1) {
-                    self.focus = 0;
+                if self.active == self.runs.len().saturating_sub(1) {
+                    self.active = 0;
                 } else {
-                    self.focus += 1;
+                    self.active += 1;
+                }
+            }
+            UserInputEvent::PrevHost => {
+                let run = self.get_active_run()?;
+                if run.active == 0 {
+                    run.active = run.hosts.len().saturating_sub(1);
+                } else {
+                    run.active -= 1;
+                }
+            }
+            UserInputEvent::NextHost => {
+                let run = self.get_active_run()?;
+                if run.active == run.hosts.len().saturating_sub(1) {
+                    run.active = 0;
+                } else {
+                    run.active += 1;
                 }
             }
             UserInputEvent::Quit => self.exit(),
@@ -147,7 +165,7 @@ impl App {
             RunEvent::RunStarted { id } => {
                 let (i, run) = self.get_run(id)?;
                 run.started = true;
-                self.focus = i;
+                self.active = i;
             }
             RunEvent::RunCompleted { id, success } => {
                 let (_, run) = self.get_run(id)?;
@@ -168,12 +186,18 @@ impl App {
         Ok(run)
     }
 
+    fn get_active_run(&mut self) -> Result<&mut RunPanel> {
+        let focus = self.active.min(self.runs.len().saturating_sub(1));
+        let run = self.runs.get_mut(focus).ok_or_else(|| anyhow!("no run"))?;
+        Ok(run)
+    }
+
     fn exit(&mut self) {
         self.exit = true;
     }
 }
 
-impl Widget for &App {
+impl Widget for &mut App {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let layout = Layout::default()
             .direction(Direction::Horizontal)
@@ -184,42 +208,35 @@ impl Widget for &App {
             ])
             .split(area);
 
-        if let Some(run) = self
-            .runs
-            .get(self.focus.min(self.runs.len().saturating_sub(1)))
-        {
+        let focus = self.active.min(self.runs.len().saturating_sub(1));
+        if let Some(run) = self.runs.get_mut(focus) {
             run.render(layout[1], buf);
-            List::new(run.hosts.iter().map(|host| {
-                let color = host
-                    .success
-                    .map(|success| if success { Color::Green } else { Color::Red });
-                if let Some(color) = color {
-                    host.host.clone().fg(color)
+            run.render_hosts(layout[0], buf)
+        }
+        self.list_state.select(Some(focus));
+        ratatui::widgets::StatefulWidget::render(
+            List::new(self.runs.iter().enumerate().map(|(i, run)| {
+                let name = run.name.clone().unwrap_or_else(|| format!("Run {}", i + 1));
+
+                let color = if let Some(success) = run.success {
+                    Some(if success { Color::Green } else { Color::Red })
+                } else if run.started {
+                    None
                 } else {
-                    host.host.clone().into()
+                    Some(Color::Gray)
+                };
+
+                if let Some(color) = color {
+                    name.fg(color)
+                } else {
+                    name.into()
                 }
             }))
-            .block(Block::default().borders(Borders::RIGHT))
-            .render(layout[0], buf);
-        }
-        List::new(self.runs.iter().enumerate().map(|(i, run)| {
-            let name = run.name.clone().unwrap_or_else(|| format!("Run {}", i + 1));
-
-            let color = if let Some(success) = run.success {
-                Some(if success { Color::Green } else { Color::Red })
-            } else if run.started {
-                None
-            } else {
-                Some(Color::Gray)
-            };
-
-            if let Some(color) = color {
-                name.fg(color)
-            } else {
-                name.into()
-            }
-        }))
-        .block(Block::default().borders(Borders::LEFT))
-        .render(layout[2], buf);
+            .highlight_symbol(" > ")
+            .block(Block::default().borders(Borders::LEFT)),
+            layout[2],
+            buf,
+            &mut self.list_state,
+        );
     }
 }

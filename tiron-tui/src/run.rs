@@ -2,8 +2,9 @@ use anyhow::{anyhow, Result};
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Rect},
-    style::{Color, Style},
+    style::{Color, Style, Stylize},
     text::StyledGrapheme,
+    widgets::{Block, Borders, List, ListState, StatefulWidget},
 };
 use tiron_common::action::{ActionId, ActionOutput, ActionOutputLevel, ActionOutputLine};
 use unicode_segmentation::UnicodeSegmentation;
@@ -85,7 +86,9 @@ impl ActionSection {
 pub struct RunPanel {
     pub id: Uuid,
     pub name: Option<String>,
+    pub active: usize,
     pub hosts: Vec<HostSection>,
+    pub hosts_state: ListState,
     pub started: bool,
     pub success: Option<bool>,
 }
@@ -95,7 +98,9 @@ impl RunPanel {
         Self {
             id,
             name,
+            active: 0,
             hosts,
+            hosts_state: ListState::default().with_selected(Some(0)),
             started: false,
             success: None,
         }
@@ -105,6 +110,23 @@ impl RunPanel {
         if let Some(host) = self.hosts.first() {
             host.render(area, buf);
         }
+    }
+
+    pub fn render_hosts(&mut self, area: Rect, buf: &mut Buffer) {
+        self.hosts_state.select(Some(self.active));
+        List::new(self.hosts.iter().map(|host| {
+            let color = host
+                .success
+                .map(|success| if success { Color::Green } else { Color::Red });
+            if let Some(color) = color {
+                host.host.clone().fg(color)
+            } else {
+                host.host.clone().into()
+            }
+        }))
+        .highlight_symbol(" > ")
+        .block(Block::default().borders(Borders::RIGHT))
+        .render(area, buf, &mut self.hosts_state);
     }
 }
 

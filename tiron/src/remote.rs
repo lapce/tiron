@@ -56,7 +56,7 @@ impl SshRemote {
 
         cmd.arg(self.ssh.user_host());
 
-        if !std::env::var("LAPCE_DEBUG").unwrap_or_default().is_empty() {
+        if !std::env::var("TIRON_DEBUG").unwrap_or_default().is_empty() {
             cmd.arg("-v");
         }
 
@@ -95,9 +95,12 @@ pub fn start_remote(remote: SshRemote) -> Result<(Sender<NodeMessage>, Receiver<
 
     let tiron_node_file = match platform {
         HostPlatform::Windows => {
-            format!("{tiron_node_path}\\tiron-{}.exe", env!("CARGO_PKG_VERSION"))
+            format!(
+                "{tiron_node_path}\\tiron-node-{}.exe",
+                env!("CARGO_PKG_VERSION")
+            )
         }
-        _ => format!("{tiron_node_path}/tiron-{}", env!("CARGO_PKG_VERSION")),
+        _ => format!("{tiron_node_path}/tiron-node-{}", env!("CARGO_PKG_VERSION")),
     };
 
     if !remote

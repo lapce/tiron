@@ -3,7 +3,7 @@ use std::io::{stdout, Stdout};
 use anyhow::Result;
 use crossbeam_channel::Sender;
 use crossterm::{
-    event::{Event, KeyCode, KeyEventKind},
+    event::{Event, KeyCode, KeyEventKind, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -37,8 +37,18 @@ pub fn handle_events(tx: Sender<AppEvent>) -> Result<()> {
                     KeyCode::Char('q') => UserInputEvent::Quit,
                     KeyCode::Char('j') => UserInputEvent::ScrollDown,
                     KeyCode::Char('k') => UserInputEvent::ScrollUp,
-                    KeyCode::Char('p') => UserInputEvent::PrevRun,
-                    KeyCode::Char('n') => UserInputEvent::NextRun,
+                    KeyCode::Char('p') if key_event.modifiers == KeyModifiers::CONTROL => {
+                        UserInputEvent::PrevRun
+                    }
+                    KeyCode::Char('n') if key_event.modifiers == KeyModifiers::CONTROL => {
+                        UserInputEvent::NextRun
+                    }
+                    KeyCode::Char('p') if key_event.modifiers.is_empty() => {
+                        UserInputEvent::PrevHost
+                    }
+                    KeyCode::Char('n') if key_event.modifiers.is_empty() => {
+                        UserInputEvent::NextHost
+                    }
                     _ => continue,
                 }
             }

@@ -16,6 +16,8 @@ pub enum UserInputEvent {
     ScrollDown,
     PrevRun,
     NextRun,
+    PrevHost,
+    NextHost,
     Quit,
 }
 
