@@ -37,6 +37,8 @@ pub fn handle_events(tx: Sender<AppEvent>) -> Result<()> {
                     KeyCode::Char('q') => UserInputEvent::Quit,
                     KeyCode::Char('j') => UserInputEvent::ScrollDown,
                     KeyCode::Char('k') => UserInputEvent::ScrollUp,
+                    KeyCode::Char('p') => UserInputEvent::PrevRun,
+                    KeyCode::Char('n') => UserInputEvent::NextRun,
                     _ => continue,
                 }
             }

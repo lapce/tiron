@@ -14,12 +14,12 @@
             state = "latest",
         },
     },
-    { 
-        name = "Install ntpdate",
-        action = "package",
-        params = {
-            name = "ntpdate",
-            state = "present",
-        }
-    },
+    // { 
+    //     name = "Install ntpdate",
+    //     action = "package",
+    //     params = {
+    //         name = "ntpdate",
+    //         state = "present",
+    //     }
+    // },
 ]

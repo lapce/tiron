@@ -9,6 +9,13 @@
         ],
     },
     {
+        hosts = "production",
+        remote_user = "dz",
+        actions = [
+            { action = "copy", params = {src = "/tmp/test.rcl", dest = "/tmp/test.conf" }},
+        ],
+    },
+    {
         hosts = "group1",
         remote_user = "dz",
         actions = [

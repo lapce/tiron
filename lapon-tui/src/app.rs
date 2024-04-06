@@ -4,6 +4,7 @@ use lapon_common::action::ActionMessage;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Stylize},
     widgets::{Block, Borders, List, Widget},
     Frame,
 };
@@ -18,6 +19,8 @@ use crate::{
 pub struct App {
     exit: bool,
     pub runs: Vec<RunPanel>,
+    // the run panel that's currently in focus
+    pub focus: usize,
     pub tx: Sender<AppEvent>,
     rx: Receiver<AppEvent>,
 }
@@ -34,6 +37,7 @@ impl App {
         Self {
             exit: false,
             runs: Vec::new(),
+            focus: 0,
             tx,
             rx,
         }
@@ -82,6 +86,20 @@ impl App {
         match event {
             UserInputEvent::ScrollUp => {}
             UserInputEvent::ScrollDown => {}
+            UserInputEvent::PrevRun => {
+                if self.focus == 0 {
+                    self.focus = self.runs.len().saturating_sub(1);
+                } else {
+                    self.focus -= 1;
+                }
+            }
+            UserInputEvent::NextRun => {
+                if self.focus == self.runs.len().saturating_sub(1) {
+                    self.focus = 0;
+                } else {
+                    self.focus += 1;
+                }
+            }
             UserInputEvent::Quit => self.exit(),
         }
         Ok(())
@@ -127,23 +145,25 @@ impl App {
     fn handle_run_event(&mut self, event: RunEvent) -> Result<()> {
         match event {
             RunEvent::RunStarted { id } => {
-                let run = self.get_run(id)?;
+                let (i, run) = self.get_run(id)?;
                 run.started = true;
+                self.focus = i;
             }
             RunEvent::RunCompleted { id, success } => {
-                let run = self.get_run(id)?;
+                let (_, run) = self.get_run(id)?;
                 run.success = Some(success);
             }
         }
         Ok(())
     }
 
-    fn get_run(&mut self, id: Uuid) -> Result<&mut RunPanel> {
+    fn get_run(&mut self, id: Uuid) -> Result<(usize, &mut RunPanel)> {
         let run = self
             .runs
             .iter_mut()
+            .enumerate()
             .rev()
-            .find(|p| p.id == id)
+            .find(|(_, p)| p.id == id)
             .ok_or_else(|| anyhow!("can't find run"))?;
         Ok(run)
     }
@@ -164,18 +184,41 @@ impl Widget for &App {
             ])
             .split(area);
 
-        if let Some(run) = self.runs.first() {
+        if let Some(run) = self
+            .runs
+            .get(self.focus.min(self.runs.len().saturating_sub(1)))
+        {
             run.render(layout[1], buf);
-            List::new(run.hosts.iter().map(|host| host.host.clone()))
-                .block(Block::default().borders(Borders::RIGHT))
-                .render(layout[0], buf);
+            List::new(run.hosts.iter().map(|host| {
+                let color = host
+                    .success
+                    .map(|success| if success { Color::Green } else { Color::Red });
+                if let Some(color) = color {
+                    host.host.clone().fg(color)
+                } else {
+                    host.host.clone().into()
+                }
+            }))
+            .block(Block::default().borders(Borders::RIGHT))
+            .render(layout[0], buf);
         }
-        List::new(
-            self.runs
-                .iter()
-                .enumerate()
-                .map(|(i, run)| run.name.clone().unwrap_or_else(|| format!("Run {}", i + 1))),
-        )
+        List::new(self.runs.iter().enumerate().map(|(i, run)| {
+            let name = run.name.clone().unwrap_or_else(|| format!("Run {}", i + 1));
+
+            let color = if let Some(success) = run.success {
+                Some(if success { Color::Green } else { Color::Red })
+            } else if run.started {
+                None
+            } else {
+                Some(Color::Gray)
+            };
+
+            if let Some(color) = color {
+                name.fg(color)
+            } else {
+                name.into()
+            }
+        }))
         .block(Block::default().borders(Borders::LEFT))
         .render(layout[2], buf);
     }
