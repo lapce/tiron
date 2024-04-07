@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use ratatui::{
@@ -207,10 +209,25 @@ impl App {
                 action.success(success);
             }
             ActionMessage::NodeShutdown { success } => {
-                host.success = Some(success);
+                host.success = Some((
+                    success,
+                    SystemTime::now()
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0),
+                ));
+                run.sort_hosts();
             }
             ActionMessage::NodeStartFailed { reason } => {
                 host.start_failed = Some(reason);
+                host.success = Some((
+                    false,
+                    SystemTime::now()
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0),
+                ));
+                run.sort_hosts();
             }
         }
         Ok(())

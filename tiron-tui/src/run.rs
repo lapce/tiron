@@ -26,7 +26,7 @@ pub struct HostSection {
     // or screen size changed
     pub content_height: Option<usize>,
     pub viewport_height: usize,
-    pub success: Option<bool>,
+    pub success: Option<(bool, u64)>,
     pub start_failed: Option<String>,
 }
 
@@ -96,6 +96,7 @@ impl HostSection {
         );
 
         let mut y = 0;
+        let mut running_bottom = 0;
 
         let stop_if_outside_area = self.content_height.is_some();
         if let Some(reason) = &self.start_failed {
@@ -115,6 +116,9 @@ impl HostSection {
         for action in &self.actions {
             action.render(area, buf, &mut y, self.scroll, stop_if_outside_area);
             y += 1;
+            if action.output.started {
+                running_bottom = y;
+            }
             if stop_if_outside_area && y >= area.height + self.scroll {
                 break;
             }
@@ -122,6 +126,8 @@ impl HostSection {
 
         if self.content_height.is_none() {
             self.content_height = Some(y as usize);
+            self.scroll = running_bottom.saturating_sub(area.height);
+            self.scroll_state = self.scroll_state.position(self.scroll as usize);
         }
         self.viewport_height = area.height as usize;
 
@@ -214,7 +220,7 @@ impl RunPanel {
                 Some(Color::Red)
             } else {
                 host.success
-                    .map(|success| if success { Color::Green } else { Color::Red })
+                    .map(|(success, _)| if success { Color::Green } else { Color::Red })
             };
             if let Some(color) = color {
                 host.host.clone().fg(color)
@@ -225,6 +231,20 @@ impl RunPanel {
         .highlight_symbol(" > ")
         .block(Block::default().borders(Borders::RIGHT))
         .render(area, buf, &mut self.hosts_state);
+    }
+
+    pub fn sort_hosts(&mut self) {
+        let active_id = self.get_active_host().ok().map(|h| h.id);
+        self.hosts.sort_by_key(|h| h.success);
+        let active = if let Some(id) = active_id {
+            self.hosts.iter().position(|h| h.id == id)
+        } else {
+            None
+        };
+        if let Some(active) = active {
+            self.active = active;
+            self.hosts_state.select(Some(active));
+        }
     }
 }
 
