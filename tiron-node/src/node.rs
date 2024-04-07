@@ -7,7 +7,7 @@ use anyhow::{anyhow, Result};
 use clap::Parser;
 use crossbeam_channel::{Receiver, Sender};
 use tiron_common::{
-    action::{ActionData, ActionMessage},
+    action::{ActionData, ActionMessage, ActionOutputLevel},
     node::NodeMessage,
 };
 
@@ -40,9 +40,10 @@ pub fn mainloop(rx: Receiver<NodeMessage>, tx: Sender<ActionMessage>) -> Result<
         match msg {
             NodeMessage::Action(action) => match node_run_action(&all_actions, &action, &tx) {
                 Ok(result) => {
-                    tx.send(ActionMessage::ActionStdout {
+                    tx.send(ActionMessage::ActionOutputLine {
                         id: action.id,
                         content: format!("successfully {result}"),
+                        level: ActionOutputLevel::Success,
                     })?;
                     tx.send(ActionMessage::ActionResult {
                         id: action.id,
@@ -50,9 +51,10 @@ pub fn mainloop(rx: Receiver<NodeMessage>, tx: Sender<ActionMessage>) -> Result<
                     })?;
                 }
                 Err(e) => {
-                    tx.send(ActionMessage::ActionStderr {
+                    tx.send(ActionMessage::ActionOutputLine {
                         id: action.id,
                         content: format!("error: {e:#}"),
+                        level: ActionOutputLevel::Error,
                     })?;
                     had_error = true;
                     tx.send(ActionMessage::ActionResult {

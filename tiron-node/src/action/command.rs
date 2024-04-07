@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::Result;
 use crossbeam_channel::Sender;
-use tiron_common::action::{ActionId, ActionMessage};
+use tiron_common::action::{ActionId, ActionMessage, ActionOutputLevel};
 
 pub fn run_command(
     id: ActionId,
@@ -30,7 +30,11 @@ pub fn run_command(
             while let Ok(n) = reader.read_line(&mut line) {
                 if n > 0 {
                     let line = line.trim_end().to_string();
-                    let _ = tx.send(ActionMessage::ActionStdout { id, content: line });
+                    let _ = tx.send(ActionMessage::ActionOutputLine {
+                        id,
+                        content: line,
+                        level: ActionOutputLevel::Info,
+                    });
                 } else {
                     break;
                 }
@@ -47,7 +51,11 @@ pub fn run_command(
             while let Ok(n) = reader.read_line(&mut line) {
                 if n > 0 {
                     let line = line.trim_end().to_string();
-                    let _ = tx.send(ActionMessage::ActionStderr { id, content: line });
+                    let _ = tx.send(ActionMessage::ActionOutputLine {
+                        id,
+                        content: line,
+                        level: ActionOutputLevel::Info,
+                    });
                 } else {
                     break;
                 }

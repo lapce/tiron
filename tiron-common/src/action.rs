@@ -18,12 +18,24 @@ impl ActionId {
 
 #[derive(Deserialize, Serialize)]
 pub enum ActionMessage {
-    NodeStartFailed { reason: String },
-    ActionStarted { id: ActionId },
-    ActionStdout { id: ActionId, content: String },
-    ActionStderr { id: ActionId, content: String },
-    ActionResult { id: ActionId, success: bool },
-    NodeShutdown { success: bool },
+    NodeStartFailed {
+        reason: String,
+    },
+    ActionStarted {
+        id: ActionId,
+    },
+    ActionOutputLine {
+        id: ActionId,
+        content: String,
+        level: ActionOutputLevel,
+    },
+    ActionResult {
+        id: ActionId,
+        success: bool,
+    },
+    NodeShutdown {
+        success: bool,
+    },
 }
 
 /// ActionData is the data that's being sent from core to node
@@ -57,6 +69,7 @@ pub struct ActionOutputLine {
 /// ActionOutputLevel indicates the severity of line in the output
 #[derive(Clone, Deserialize, Serialize)]
 pub enum ActionOutputLevel {
+    Success,
     Info,
     Warn,
     Error,

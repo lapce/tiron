@@ -4,7 +4,7 @@ use ratatui::{
     layout::{Alignment, Rect},
     style::{Color, Style, Stylize},
     text::StyledGrapheme,
-    widgets::{Block, Borders, List, ListState, StatefulWidget},
+    widgets::{block::Title, Block, Borders, List, ListState, Paragraph, StatefulWidget},
 };
 use tiron_common::action::{ActionId, ActionOutput, ActionOutputLevel, ActionOutputLine};
 use unicode_segmentation::UnicodeSegmentation;
@@ -34,6 +34,51 @@ impl HostSection {
     }
 
     fn render(&self, area: Rect, buf: &mut Buffer) {
+        let status_area = Rect::new(
+            area.left() + 1,
+            area.bottom() - 1,
+            area.width.saturating_sub(2),
+            1,
+        );
+
+        {
+            let width = status_area.width;
+            let completed = self
+                .actions
+                .iter()
+                .filter(|a| a.output.success == Some(true))
+                .count();
+            let total = self.actions.len();
+
+            let width = if total == 0 {
+                0
+            } else {
+                ((completed * width as usize) / total) as u16
+            };
+            buf.set_style(
+                Rect::new(status_area.left(), status_area.top(), width, 1),
+                Style::default().bg(Color::Green),
+            );
+
+            ratatui::widgets::Widget::render(
+                Paragraph::new(format!("{completed} / {total}")).alignment(Alignment::Center),
+                status_area,
+                buf,
+            );
+        }
+
+        let area = Rect::new(
+            area.left(),
+            area.top(),
+            area.width,
+            area.height.saturating_sub(1),
+        );
+        let block = Block::default()
+            .title(Title::from(format!(" {} ", self.host)).alignment(Alignment::Center))
+            .borders(Borders::TOP | Borders::BOTTOM);
+        ratatui::widgets::Widget::render(&block, area, buf);
+        let area = block.inner(area);
+
         let area = Rect::new(
             area.left() + 1,
             area.top() + 1,
@@ -78,18 +123,8 @@ impl ActionSection {
         self.output.started = true;
     }
 
-    pub fn stdout(&mut self, content: String) {
-        self.output.lines.push(ActionOutputLine {
-            content,
-            level: ActionOutputLevel::Info,
-        });
-    }
-
-    pub fn stderr(&mut self, content: String) {
-        self.output.lines.push(ActionOutputLine {
-            content,
-            level: ActionOutputLevel::Error,
-        });
+    pub fn output_line(&mut self, content: String, level: ActionOutputLevel) {
+        self.output.lines.push(ActionOutputLine { content, level });
     }
 
     pub fn success(&mut self, success: bool) {
@@ -203,6 +238,7 @@ impl ActionSection {
         }
         for line in &self.output.lines {
             let fg = match line.level {
+                ActionOutputLevel::Success => Some(Color::Green),
                 ActionOutputLevel::Info => None,
                 ActionOutputLevel::Warn => Some(Color::Yellow),
                 ActionOutputLevel::Error => Some(Color::Red),

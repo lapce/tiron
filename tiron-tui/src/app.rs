@@ -141,13 +141,9 @@ impl App {
                 let action = host.get_action(id)?;
                 action.started();
             }
-            ActionMessage::ActionStdout { id, content } => {
+            ActionMessage::ActionOutputLine { id, content, level } => {
                 let action = host.get_action(id)?;
-                action.stdout(content);
-            }
-            ActionMessage::ActionStderr { id, content } => {
-                let action = host.get_action(id)?;
-                action.stderr(content);
+                action.output_line(content, level);
             }
             ActionMessage::ActionResult { id, success } => {
                 let action = host.get_action(id)?;
