@@ -37,6 +37,10 @@ pub fn handle_events(tx: Sender<AppEvent>) -> Result<()> {
                     KeyCode::Char('q') => UserInputEvent::Quit,
                     KeyCode::Char('j') => UserInputEvent::ScrollDown,
                     KeyCode::Char('k') => UserInputEvent::ScrollUp,
+                    KeyCode::Char('g') => UserInputEvent::ScrollToTop,
+                    KeyCode::Char('G') => UserInputEvent::ScrollToBottom,
+                    KeyCode::Char('u') => UserInputEvent::PageUp,
+                    KeyCode::Char('d') => UserInputEvent::PageDown,
                     KeyCode::Char('p') if key_event.modifiers == KeyModifiers::CONTROL => {
                         UserInputEvent::PrevRun
                     }
@@ -52,6 +56,7 @@ pub fn handle_events(tx: Sender<AppEvent>) -> Result<()> {
                     _ => continue,
                 }
             }
+            Event::Resize(_, _) => UserInputEvent::Resize,
             _ => continue,
         };
         tx.send(AppEvent::UserInput(event))?;

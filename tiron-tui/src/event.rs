@@ -14,10 +14,15 @@ pub enum AppEvent {
 pub enum UserInputEvent {
     ScrollUp,
     ScrollDown,
+    ScrollToTop,
+    ScrollToBottom,
+    PageUp,
+    PageDown,
     PrevRun,
     NextRun,
     PrevHost,
     NextHost,
+    Resize,
     Quit,
 }
 

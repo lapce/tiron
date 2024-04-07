@@ -86,8 +86,64 @@ impl App {
 
     fn handle_user_input(&mut self, event: UserInputEvent) -> Result<()> {
         match event {
-            UserInputEvent::ScrollUp => {}
-            UserInputEvent::ScrollDown => {}
+            UserInputEvent::ScrollUp => {
+                let run = self.get_active_run()?;
+                let host = run.get_active_host_mut()?;
+                if host.scroll > 0 {
+                    host.scroll -= 1;
+                    host.scroll_state.prev();
+                }
+            }
+            UserInputEvent::ScrollDown => {
+                let run = self.get_active_run()?;
+                let host = run.get_active_host_mut()?;
+                if let Some(height) = host.content_height {
+                    if (host.scroll as usize) + host.viewport_height < height {
+                        host.scroll_state.next();
+                        host.scroll += 1;
+                    }
+                }
+            }
+            UserInputEvent::PageUp => {
+                let run = self.get_active_run()?;
+                let host = run.get_active_host_mut()?;
+                if host.scroll > 0 {
+                    host.scroll = host
+                        .scroll
+                        .saturating_sub((host.viewport_height / 2) as u16);
+                    host.scroll_state = host.scroll_state.position(host.scroll as usize);
+                }
+            }
+            UserInputEvent::PageDown => {
+                let run = self.get_active_run()?;
+                let host = run.get_active_host_mut()?;
+                if let Some(height) = host.content_height {
+                    let max = height.saturating_sub(host.viewport_height) as u16;
+                    host.scroll = (host.scroll + (host.viewport_height / 2) as u16).min(max);
+                    host.scroll_state = host.scroll_state.position(host.scroll as usize);
+                }
+            }
+            UserInputEvent::ScrollToTop => {
+                let run = self.get_active_run()?;
+                let host = run.get_active_host_mut()?;
+                host.scroll = 0;
+                host.scroll_state = host.scroll_state.position(0);
+            }
+            UserInputEvent::ScrollToBottom => {
+                let run = self.get_active_run()?;
+                let host = run.get_active_host_mut()?;
+                if let Some(height) = host.content_height {
+                    host.scroll = height.saturating_sub(host.viewport_height) as u16;
+                    host.scroll_state = host.scroll_state.position(host.scroll as usize);
+                }
+            }
+            UserInputEvent::Resize => {
+                for run in self.runs.iter_mut() {
+                    for host in run.hosts.iter_mut() {
+                        host.content_height = None;
+                    }
+                }
+            }
             UserInputEvent::PrevRun => {
                 if self.active == 0 {
                     self.active = self.runs.len().saturating_sub(1);
@@ -144,6 +200,7 @@ impl App {
             ActionMessage::ActionOutputLine { id, content, level } => {
                 let action = host.get_action(id)?;
                 action.output_line(content, level);
+                host.content_height = None;
             }
             ActionMessage::ActionResult { id, success } => {
                 let action = host.get_action(id)?;
