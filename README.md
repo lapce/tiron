@@ -14,7 +14,7 @@
   </a>
 </div>
 
-**Tiron** is an automation tool that's easy to use and aims to be as fast as possible. It’s agentless by using SSH and has a TUI for the outputs of the tasks. 
+**Tiron** is an automation tool that's easy to use and aims to be as fast as possible. It’s agentless by using SSH and has a TUI for the outputs of the tasks. There is an example Tiron configuration [here](https://github.com/lapce/tiron/tree/main/examples/example_tiron_project).
 
 <div align="center">
   <img width="894" alt="Screenshot" src="https://github.com/lapce/tiron/assets/1169480/0c53b83e-901b-410e-afc3-3a4aa4917b93">
