@@ -350,7 +350,6 @@ dependencies = [
 [[package]]
 name = "rcl"
 version = "0.2.0"
-source = "git+https://github.com/ruuda/rcl?rev=6bb68da8ef1ef36f8a38453e7832efb498dc082e#6bb68da8ef1ef36f8a38453e7832efb498dc082e"
 dependencies = [
  "unicode-width",
 ]

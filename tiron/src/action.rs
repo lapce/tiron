@@ -10,7 +10,7 @@ use crate::job::Job;
 pub fn parse_actions(
     cwd: &Path,
     value: &Value,
-    vars: &HashMap<String, String>,
+    vars: &HashMap<String, Value>,
 ) -> Result<Vec<ActionData>> {
     let Value::List(action_values) = value else {
         return Err(anyhow!("actions should be a list"));

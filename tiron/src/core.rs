@@ -2,10 +2,10 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::Sender;
-use rcl::{markup::MarkupMode, runtime::Value};
+use rcl::ast::{Expr, Seq, Yield};
 use tiron_tui::event::{AppEvent, RunEvent};
 
-use crate::{cli::Cli, config::Config, run::Run};
+use crate::{cli::Cli, config::Config, node::Node, run::Run};
 
 pub fn start(cli: &Cli) -> Result<()> {
     let mut app = tiron_tui::app::App::new();
@@ -65,32 +65,64 @@ fn parse_runbook(name: &str, config: &Config, tx: &Sender<AppEvent>) -> Result<V
         .with_context(|| format!("can't reading runbook {}", path.to_string_lossy()))?;
 
     let mut loader = rcl::loader::Loader::new();
-    let id = loader.load_string(data);
-    let value = loader
-        .evaluate(
-            &mut rcl::typecheck::prelude(),
-            &mut rcl::runtime::prelude(),
-            id,
-            &mut rcl::tracer::StderrTracer::new(Some(MarkupMode::Ansi)),
-        )
-        .map_err(|e| {
-            anyhow!(
-                "can't parse rcl file: {:?} {:?} {:?}",
-                e.message,
-                e.body,
-                e.origin
-            )
-        })?;
+    let id = loader.load_string(data.clone());
 
-    let Value::List(runs) = value else {
+    let ast = loader.get_unchecked_ast(id).map_err(|e| {
+        anyhow!(
+            "can't parse run book {}: {:?} {:?} {:?}",
+            path.to_string_lossy(),
+            e.message,
+            e.body,
+            e.origin
+        )
+    })?;
+
+    let mut runs = Vec::new();
+    let Expr::BracketLit { elements, .. } = ast else {
         return Err(anyhow!("runbook should be a list"));
     };
+    for seq in elements {
+        let mut hosts: Vec<Node> = Vec::new();
 
-    let runs: Result<Vec<Run>> = runs
-        .iter()
-        .map(|v| Run::from_value(cwd, config, v, tx))
-        .collect();
-    let runs = runs?;
+        let Seq::Yield(Yield::Elem { value, span }) = seq else {
+            return Err(anyhow!("run should be a dict"));
+        };
+        let Expr::BraceLit { elements, .. } = *value else {
+            return Err(anyhow!("run should be a dict"));
+        };
+
+        for seq in elements {
+            if let Seq::Yield(Yield::Assoc { key, value, .. }) = seq {
+                if let Expr::StringLit(s) = *key {
+                    if s.as_ref() == "hosts" {
+                        if let Expr::StringLit(s) = *value {
+                            for node in config.hosts_from_name(s.as_ref())? {
+                                if !hosts.iter().any(|n| n.host == node.host) {
+                                    hosts.push(node);
+                                }
+                            }
+                        } else if let Expr::BracketLit { elements, .. } = *value {
+                            for seq in elements {
+                                let Seq::Yield(Yield::Elem { value, .. }) = seq else {
+                                    return Err(anyhow!("hosts should be list of strings"));
+                                };
+                                let Expr::StringLit(s) = *value else {
+                                    return Err(anyhow!("hosts should be list of strings"));
+                                };
+                                for node in config.hosts_from_name(s.as_ref())? {
+                                    if !hosts.iter().any(|n| n.host == node.host) {
+                                        hosts.push(node);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let run = Run::from_runbook(cwd, &data[span.start()..span.end()], hosts, tx)?;
+        runs.push(run);
+    }
 
     Ok(runs)
 }

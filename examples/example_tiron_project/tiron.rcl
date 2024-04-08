@@ -8,6 +8,7 @@
                 var1 = "val1",
                 var2 = "val2",
                 var3 = "val3",
+                apache = "httpd",
             },
         },
         group1 = {
@@ -19,6 +20,7 @@
                         var1 = "val1",
                         var2 = "val2",
                         var3 = "val3",
+                        apache = "apache",
                     },
                 },
             ]

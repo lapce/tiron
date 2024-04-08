@@ -4,15 +4,15 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use rcl::markup::MarkupMode;
+use rcl::{markup::MarkupMode, runtime::Value};
 use tiron_common::action::ActionData;
 
-use crate::action::parse_actions;
+use crate::{action::parse_actions, run::value_to_type};
 
 pub struct Job {}
 
 impl Job {
-    pub fn load(cwd: &Path, name: &str, vars: &HashMap<String, String>) -> Result<Vec<ActionData>> {
+    pub fn load(cwd: &Path, name: &str, vars: &HashMap<String, Value>) -> Result<Vec<ActionData>> {
         let (content, path) = Self::load_file(cwd, name)?;
         let parent = path.parent().ok_or_else(|| {
             anyhow!(
@@ -23,16 +23,22 @@ impl Job {
 
         let mut loader = rcl::loader::Loader::new();
         let id = loader.load_string(content);
+        let mut type_env = rcl::typecheck::prelude();
+        let mut env = rcl::runtime::prelude();
+        for (name, value) in vars {
+            type_env.push(name.as_str().into(), value_to_type(value));
+            env.push(name.as_str().into(), value.clone());
+        }
         let value = loader
             .evaluate(
-                &mut rcl::typecheck::prelude(),
-                &mut rcl::runtime::prelude(),
+                &mut type_env,
+                &mut env,
                 id,
                 &mut rcl::tracer::StderrTracer::new(Some(MarkupMode::Ansi)),
             )
             .map_err(|e| {
                 anyhow!(
-                    "can't parse rcl file {}: {:?} {:?} {:?}",
+                    "can't parse job rcl file {}: {:?} {:?} {:?}",
                     path.to_string_lossy(),
                     e.message,
                     e.body,

@@ -290,16 +290,13 @@ impl ActionSection {
         scroll: u16,
         stop_if_outside_area: bool,
     ) {
-        let bg = if let Some(success) = self.output.success {
-            if success {
-                Color::Green
-            } else {
-                Color::Red
-            }
+        let (fg, bg) = if let Some(success) = self.output.success {
+            let bg = if success { Color::Green } else { Color::Red };
+            (Some(Color::Black), bg)
         } else if self.output.started {
-            Color::Yellow
+            (Some(Color::Black), Color::Yellow)
         } else {
-            Color::Gray
+            (Some(Color::Black), Color::Gray)
         };
         render_line(
             area,
@@ -307,7 +304,7 @@ impl ActionSection {
             y,
             scroll,
             &self.name,
-            None,
+            fg,
             Some(bg),
             stop_if_outside_area,
         );

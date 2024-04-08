@@ -7,7 +7,6 @@ use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::Sender;
 use rcl::{markup::MarkupMode, runtime::Value};
 use tiron_tui::event::AppEvent;
-use uuid::Uuid;
 
 use crate::node::Node;
 
@@ -18,12 +17,12 @@ pub enum HostOrGroup {
 
 pub struct HostOrGroupConfig {
     host: HostOrGroup,
-    vars: HashMap<String, String>,
+    vars: HashMap<String, Value>,
 }
 
 pub struct GroupConfig {
     hosts: Vec<HostOrGroupConfig>,
-    vars: HashMap<String, String>,
+    vars: HashMap<String, Value>,
 }
 
 pub struct Config {
@@ -119,12 +118,7 @@ impl Config {
                         "invalid tiron.rcl: group entry {group_name} vars key should be a string"
                     ));
                 };
-                let Value::String(var) = var else {
-                    return Err(anyhow!(
-                        "invalid tiron.rcl: group entry {group_name} vars {key} value should be a string"
-                    ));
-                };
-                group_config.vars.insert(key.to_string(), var.to_string());
+                group_config.vars.insert(key.to_string(), var.clone());
             }
         }
 
@@ -195,12 +189,7 @@ impl Config {
                         "invalid tiron.rcl: group entry {group_name} vars key should be a string"
                     ));
                 };
-                let Value::String(var) = var else {
-                    return Err(anyhow!(
-                        "invalid tiron.rcl: group entry {group_name} vars {key} value should be a string"
-                    ));
-                };
-                host_config.vars.insert(key.to_string(), var.to_string());
+                host_config.vars.insert(key.to_string(), var.clone());
             }
         }
 
@@ -215,14 +204,11 @@ impl Config {
                 for host in &group.hosts {
                     if let HostOrGroup::Host(host_name) = &host.host {
                         if host_name == name {
-                            return Ok(vec![Node {
-                                id: Uuid::new_v4(),
-                                host: host_name.to_string(),
-                                vars: host.vars.clone(),
-                                remote_user: None,
-                                actions: Vec::new(),
-                                tx: self.tx.clone(),
-                            }]);
+                            return Ok(vec![Node::new(
+                                host_name.to_string(),
+                                host.vars.clone(),
+                                &self.tx,
+                            )]);
                         }
                     }
                 }
@@ -240,22 +226,25 @@ impl Config {
         for host_or_group in &group.hosts {
             let mut local_hosts = match &host_or_group.host {
                 HostOrGroup::Host(name) => {
-                    let host_config = Node {
-                        id: Uuid::new_v4(),
-                        host: name.to_string(),
-                        vars: host_or_group.vars.clone(),
-                        remote_user: None,
-                        actions: Vec::new(),
-                        tx: self.tx.clone(),
-                    };
-                    vec![host_config]
+                    vec![Node::new(
+                        name.to_string(),
+                        host_or_group.vars.clone(),
+                        &self.tx,
+                    )]
                 }
                 HostOrGroup::Group(group) => {
                     let mut local_hosts = self.hosts_from_group(group)?;
                     for host in local_hosts.iter_mut() {
                         for (key, val) in &host_or_group.vars {
                             if !host.vars.contains_key(key) {
-                                host.vars.insert(key.to_string(), val.to_string());
+                                if key == "remote_user" && host.remote_user.is_none() {
+                                    host.remote_user = if let Value::String(s) = val {
+                                        Some(s.to_string())
+                                    } else {
+                                        None
+                                    };
+                                }
+                                host.vars.insert(key.to_string(), val.clone());
                             }
                         }
                     }
@@ -265,7 +254,14 @@ impl Config {
             for host in local_hosts.iter_mut() {
                 for (key, val) in &group.vars {
                     if !host.vars.contains_key(key) {
-                        host.vars.insert(key.to_string(), val.to_string());
+                        if key == "remote_user" && host.remote_user.is_none() {
+                            host.remote_user = if let Value::String(s) = val {
+                                Some(s.to_string())
+                            } else {
+                                None
+                            };
+                        }
+                        host.vars.insert(key.to_string(), val.clone());
                     }
                 }
             }
