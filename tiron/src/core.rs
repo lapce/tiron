@@ -83,6 +83,7 @@ fn parse_runbook(name: &str, config: &Config, tx: &Sender<AppEvent>) -> Result<V
     };
     for seq in elements {
         let mut hosts: Vec<Node> = Vec::new();
+        let mut name: Option<String> = None;
 
         let Seq::Yield(Yield::Elem { value, span }) = seq else {
             return Err(anyhow!("run should be a dict"));
@@ -116,11 +117,16 @@ fn parse_runbook(name: &str, config: &Config, tx: &Sender<AppEvent>) -> Result<V
                                 }
                             }
                         }
+                    } else if s.as_ref() == "name" {
+                        let Expr::StringLit(s) = *value else {
+                            return Err(anyhow!("run name should be a string"));
+                        };
+                        name = Some(s.to_string());
                     }
                 }
             }
         }
-        let run = Run::from_runbook(cwd, &data[span.start()..span.end()], hosts, tx)?;
+        let run = Run::from_runbook(cwd, name, &data[span.start()..span.end()], hosts, tx)?;
         runs.push(run);
     }
 

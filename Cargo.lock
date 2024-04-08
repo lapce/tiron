@@ -500,7 +500,7 @@ dependencies = [
 
 [[package]]
 name = "tiron"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -518,7 +518,7 @@ dependencies = [
 
 [[package]]
 name = "tiron-common"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "rcl",
@@ -528,11 +528,11 @@ dependencies = [
 
 [[package]]
 name = "tiron-lsp"
-version = "0.1.2"
+version = "0.1.3"
 
 [[package]]
 name = "tiron-node"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -546,7 +546,7 @@ dependencies = [
 
 [[package]]
 name = "tiron-tui"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
@@ -561,7 +561,7 @@ dependencies = [
 
 [[package]]
 name = "tiron-workspace"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "clap",

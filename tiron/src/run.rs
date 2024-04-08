@@ -24,6 +24,7 @@ pub struct Run {
 impl Run {
     pub fn from_runbook(
         cwd: &Path,
+        name: Option<String>,
         content: &str,
         hosts: Vec<Node>,
         tx: &Sender<AppEvent>,
@@ -43,7 +44,7 @@ impl Run {
 
         let mut run = Run {
             id: Uuid::new_v4(),
-            name: None,
+            name,
             hosts,
         };
 
