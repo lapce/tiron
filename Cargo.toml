@@ -46,9 +46,9 @@ crossbeam-channel = { version = "0.5.11" }
 strum             = { version = "0.26.2" }
 strum_macros      = { version = "0.26.2" }
 serde             = { version = "1.0.197", features = ["derive"] }
-# rcl               = { git = "https://github.com/ruuda/rcl", rev = "6bb68da8ef1ef36f8a38453e7832efb498dc082e" }
-rcl               = { path = "../rcl" }
 tiron             = { path = "./tiron" }
 tiron-tui         = { path = "./tiron-tui" }
 tiron-node        = { path = "./tiron-node" }
 tiron-common      = { path = "./tiron-common" }
+rcl               = { git = "https://github.com/lapce/rcl", rev = "29ff14fcd8f5f57dff2d71cbd5d5c0563b1cef66" }
+# rcl               = { path = "../rcl" }

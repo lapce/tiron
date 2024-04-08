@@ -350,6 +350,7 @@ dependencies = [
 [[package]]
 name = "rcl"
 version = "0.2.0"
+source = "git+https://github.com/lapce/rcl?rev=29ff14fcd8f5f57dff2d71cbd5d5c0563b1cef66#29ff14fcd8f5f57dff2d71cbd5d5c0563b1cef66"
 dependencies = [
  "unicode-width",
 ]
