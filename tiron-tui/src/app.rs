@@ -147,32 +147,24 @@ impl App {
                 }
             }
             UserInputEvent::PrevRun => {
-                if self.active == 0 {
-                    self.active = self.runs.len().saturating_sub(1);
-                } else {
+                if self.active > 0 {
                     self.active -= 1;
                 }
             }
             UserInputEvent::NextRun => {
-                if self.active == self.runs.len().saturating_sub(1) {
-                    self.active = 0;
-                } else {
+                if self.active < self.runs.len().saturating_sub(1) {
                     self.active += 1;
                 }
             }
             UserInputEvent::PrevHost => {
                 let run = self.get_active_run()?;
-                if run.active == 0 {
-                    run.active = run.hosts.len().saturating_sub(1);
-                } else {
+                if run.active > 0 {
                     run.active -= 1;
                 }
             }
             UserInputEvent::NextHost => {
                 let run = self.get_active_run()?;
-                if run.active == run.hosts.len().saturating_sub(1) {
-                    run.active = 0;
-                } else {
+                if run.active < run.hosts.len().saturating_sub(1) {
                     run.active += 1;
                 }
             }
@@ -294,9 +286,9 @@ impl Widget for &mut App {
                 let color = if let Some(success) = run.success {
                     Some(if success { Color::Green } else { Color::Red })
                 } else if run.started {
-                    None
+                    Some(Color::Yellow)
                 } else {
-                    Some(Color::Gray)
+                    None
                 };
 
                 if let Some(color) = color {

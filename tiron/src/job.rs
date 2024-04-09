@@ -5,19 +5,27 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use rcl::{markup::MarkupMode, runtime::Value};
-use tiron_common::action::ActionData;
+use tiron_common::{action::ActionData, error::Error};
 
 use crate::{action::parse_actions, run::value_to_type};
 
 pub struct Job {}
 
 impl Job {
-    pub fn load(cwd: &Path, name: &str, vars: &HashMap<String, Value>) -> Result<Vec<ActionData>> {
-        let (content, path) = Self::load_file(cwd, name)?;
+    pub fn load(
+        cwd: &Path,
+        name: &str,
+        vars: &HashMap<String, Value>,
+    ) -> Result<Vec<ActionData>, Error> {
+        let (content, path) =
+            Self::load_file(cwd, name).map_err(|e| Error::new(e.to_string(), None))?;
         let parent = path.parent().ok_or_else(|| {
-            anyhow!(
-                "job path {} doesn't have parent folder",
-                path.to_string_lossy()
+            Error::new(
+                format!(
+                    "job path {} doesn't have parent folder",
+                    path.to_string_lossy()
+                ),
+                None,
             )
         })?;
 
@@ -36,15 +44,7 @@ impl Job {
                 id,
                 &mut rcl::tracer::StderrTracer::new(Some(MarkupMode::Ansi)),
             )
-            .map_err(|e| {
-                anyhow!(
-                    "can't parse job rcl file {}: {:?} {:?} {:?}",
-                    path.to_string_lossy(),
-                    e.message,
-                    e.body,
-                    e.origin
-                )
-            })?;
+            .map_err(|e| Error::new("", e.origin))?;
 
         let actions = parse_actions(parent, &value, vars)?;
 

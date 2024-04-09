@@ -31,7 +31,7 @@ impl Node {
             id: Uuid::new_v4(),
             host,
             remote_user: vars.get("remote_user").and_then(|v| {
-                if let Value::String(s) = v {
+                if let Value::String(s, _) = v {
                     Some(s.to_string())
                 } else {
                     None

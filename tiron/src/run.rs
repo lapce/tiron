@@ -1,12 +1,14 @@
 use std::{collections::HashMap, path::Path, sync::Arc};
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use crossbeam_channel::Sender;
 use rcl::{
+    loader::Loader,
     markup::MarkupMode,
     runtime::Value,
     types::{SourcedType, Type},
 };
+use tiron_common::error::Error;
 use tiron_tui::{
     event::AppEvent,
     run::{ActionSection, HostSection, RunPanel},
@@ -23,12 +25,13 @@ pub struct Run {
 
 impl Run {
     pub fn from_runbook(
+        loader: &mut Loader,
         cwd: &Path,
         name: Option<String>,
         content: &str,
         hosts: Vec<Node>,
         tx: &Sender<AppEvent>,
-    ) -> Result<Self> {
+    ) -> Result<Self, Error> {
         let hosts = if hosts.is_empty() {
             vec![Node {
                 id: Uuid::new_v4(),
@@ -49,7 +52,6 @@ impl Run {
         };
 
         for host in run.hosts.iter_mut() {
-            let mut loader = rcl::loader::Loader::new();
             let id = loader.load_string(content.to_string());
             let mut type_env = rcl::typecheck::prelude();
             let mut env = rcl::runtime::prelude();
@@ -64,25 +66,18 @@ impl Run {
                     id,
                     &mut rcl::tracer::StderrTracer::new(Some(MarkupMode::Ansi)),
                 )
-                .map_err(|e| {
-                    anyhow!(
-                        "can't parse rcl file: {:?} {:?} {:?}",
-                        e.message,
-                        e.body,
-                        e.origin
-                    )
-                })?;
+                .map_err(|e| Error::new("", e.origin))?;
 
-            let Value::Dict(dict) = value else {
-                return Err(anyhow!("run should be a dict"));
+            let Value::Dict(dict, dict_span) = value else {
+                return Error::new("run should be a dict", *value.span()).err();
             };
-            let Some(value) = dict.get(&Value::String("actions".into())) else {
-                return Err(anyhow!("run should have actions"));
+            let Some(value) = dict.get(&Value::String("actions".into(), None)) else {
+                return Error::new("run should have actions", dict_span).err();
             };
 
-            if let Some(remote_user) = dict.get(&Value::String("remote_user".into())) {
-                let Value::String(remote_user) = remote_user else {
-                    return Err(anyhow!("remote_user should be a string"));
+            if let Some(remote_user) = dict.get(&Value::String("remote_user".into(), None)) {
+                let Value::String(remote_user, _) = remote_user else {
+                    return Error::new("remote_user should be a string", *remote_user.span()).err();
                 };
                 if host.remote_user.is_none() {
                     host.remote_user = Some(remote_user.to_string());
@@ -145,7 +140,7 @@ pub fn value_to_type(value: &Value) -> SourcedType {
         Value::Null => Type::Null,
         Value::Bool(_) => Type::Bool,
         Value::Int(_) => Type::Int,
-        Value::String(_) => Type::String,
+        Value::String(_, _) => Type::String,
         Value::List(list) => Type::List(Arc::new(if let Some(v) = list.first() {
             value_to_type(v)
         } else {
@@ -156,17 +151,19 @@ pub fn value_to_type(value: &Value) -> SourcedType {
         } else {
             SourcedType::any()
         })),
-        Value::Dict(v) => Type::Dict(Arc::new(if let Some((key, value)) = v.first_key_value() {
-            rcl::types::Dict {
-                key: value_to_type(key),
-                value: value_to_type(value),
-            }
-        } else {
-            rcl::types::Dict {
-                key: SourcedType::any(),
-                value: SourcedType::any(),
-            }
-        })),
+        Value::Dict(v, _) => {
+            Type::Dict(Arc::new(if let Some((key, value)) = v.first_key_value() {
+                rcl::types::Dict {
+                    key: value_to_type(key),
+                    value: value_to_type(value),
+                }
+            } else {
+                rcl::types::Dict {
+                    key: SourcedType::any(),
+                    value: SourcedType::any(),
+                }
+            }))
+        }
         Value::Function(f) => Type::Function(f.type_.clone()),
         Value::BuiltinFunction(f) => Type::Function(Arc::new((f.type_)())),
         Value::BuiltinMethod(_) => Type::Any,

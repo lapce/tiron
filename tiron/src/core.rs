@@ -1,15 +1,63 @@
-use std::path::PathBuf;
+use std::{io::Write, path::PathBuf};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::Result;
+use clap::Parser;
 use crossbeam_channel::Sender;
-use rcl::ast::{Expr, Seq, Yield};
+use rcl::{
+    ast::{Expr, Seq, Yield},
+    error::IntoError,
+    loader::Loader,
+    markup::{MarkupMode, MarkupString},
+    pprint::{self, Doc},
+};
+use tiron_common::error::Error;
 use tiron_tui::event::{AppEvent, RunEvent};
 
 use crate::{cli::Cli, config::Config, node::Node, run::Run};
 
-pub fn start(cli: &Cli) -> Result<()> {
+pub fn run() {
+    let cli = Cli::parse();
+    let mut loader = rcl::loader::Loader::new();
+    if let Err(e) = start(&cli, &mut loader) {
+        print_fatal_error(e, &loader);
+    }
+}
+
+fn print_fatal_error(err: Error, loader: &Loader) -> ! {
+    let inputs = loader.as_inputs();
+    let err = if let Some(span) = err.span {
+        span.error(err.msg)
+    } else {
+        rcl::error::Error::new(err.msg)
+    };
+    let err_doc = err.report(&inputs);
+    print_doc_stderr(err_doc);
+    // Regardless of whether printing to stderr failed or not, the error was
+    // fatal, so we exit with code 1.
+    std::process::exit(1);
+}
+
+fn print_doc_stderr(doc: Doc) {
+    let stderr = std::io::stderr();
+    let markup = MarkupMode::Ansi;
+    let cfg = pprint::Config { width: 80 };
+    let result = doc.println(&cfg);
+    let mut out = stderr.lock();
+    print_string(markup, result, &mut out);
+}
+
+fn print_string(mode: MarkupMode, data: MarkupString, out: &mut dyn Write) {
+    let res = data.write_bytes(mode, out);
+    if res.is_err() {
+        // If we fail to print to stdout/stderr, there is no point in
+        // printing an error, just exit then.
+        std::process::exit(1);
+    }
+}
+
+pub fn start(cli: &Cli, loader: &mut Loader) -> Result<(), Error> {
     let mut app = tiron_tui::app::App::new();
-    let config = Config::load(&app.tx)?;
+    let config = Config::load(loader, &app.tx)?;
 
     let runbooks = if cli.runbooks.is_empty() {
         vec!["main".to_string()]
@@ -17,9 +65,9 @@ pub fn start(cli: &Cli) -> Result<()> {
         cli.runbooks.clone()
     };
 
-    let runs: Result<Vec<Vec<Run>>> = runbooks
+    let runs: Result<Vec<Vec<Run>>, Error> = runbooks
         .iter()
-        .map(|name| parse_runbook(name, &config, &app.tx))
+        .map(|name| parse_runbook(loader, name, &config, &app.tx))
         .collect();
     let runs: Vec<Run> = runs?.into_iter().flatten().collect();
 
@@ -41,12 +89,17 @@ pub fn start(cli: &Cli) -> Result<()> {
         Ok(())
     });
 
-    app.start()?;
+    app.start().map_err(|e| Error::new(e.to_string(), None))?;
 
     Ok(())
 }
 
-fn parse_runbook(name: &str, config: &Config, tx: &Sender<AppEvent>) -> Result<Vec<Run>> {
+fn parse_runbook(
+    loader: &mut Loader,
+    name: &str,
+    config: &Config,
+    tx: &Sender<AppEvent>,
+) -> Result<Vec<Run>, Error> {
     let file_name = if !name.ends_with(".rcl") {
         format!("{name}.rcl")
     } else {
@@ -57,60 +110,80 @@ fn parse_runbook(name: &str, config: &Config, tx: &Sender<AppEvent>) -> Result<V
         Ok(path) => path.join(file_name),
         Err(_) => PathBuf::from(file_name),
     };
-    let cwd = path
-        .parent()
-        .ok_or_else(|| anyhow!("can't find parent for {}", path.to_string_lossy()))?;
-
-    let data = std::fs::read_to_string(&path)
-        .with_context(|| format!("can't reading runbook {}", path.to_string_lossy()))?;
-
-    let mut loader = rcl::loader::Loader::new();
-    let id = loader.load_string(data.clone());
-
-    let ast = loader.get_unchecked_ast(id).map_err(|e| {
-        anyhow!(
-            "can't parse run book {}: {:?} {:?} {:?}",
-            path.to_string_lossy(),
-            e.message,
-            e.body,
-            e.origin
+    let cwd = path.parent().ok_or_else(|| {
+        Error::new(
+            format!("can't find parent for {}", path.to_string_lossy()),
+            None,
         )
     })?;
 
+    let data = std::fs::read_to_string(&path).map_err(|e| {
+        Error::new(
+            format!("can't read runbook {} error: {e}", path.to_string_lossy()),
+            None,
+        )
+    })?;
+
+    let id = loader.load_string(data.clone());
+
+    let ast = loader
+        .get_unchecked_ast(id)
+        .map_err(|e| Error::new("", e.origin))?;
+
     let mut runs = Vec::new();
-    let Expr::BracketLit { elements, .. } = ast else {
-        return Err(anyhow!("runbook should be a list"));
+    let Expr::BracketLit { elements, open } = ast else {
+        return Error::new("runbook should be a list", None).err();
     };
     for seq in elements {
         let mut hosts: Vec<Node> = Vec::new();
         let mut name: Option<String> = None;
 
         let Seq::Yield(Yield::Elem { value, span }) = seq else {
-            return Err(anyhow!("run should be a dict"));
+            return Error::new("run should be a dict", Some(open)).err();
         };
         let Expr::BraceLit { elements, .. } = *value else {
-            return Err(anyhow!("run should be a dict"));
+            return Error::new("run should be a dict", Some(span)).err();
         };
 
         for seq in elements {
-            if let Seq::Yield(Yield::Assoc { key, value, .. }) = seq {
-                if let Expr::StringLit(s) = *key {
+            if let Seq::Yield(Yield::Assoc {
+                key,
+                value,
+                value_span,
+                ..
+            }) = seq
+            {
+                if let Expr::StringLit(s, _) = *key {
                     if s.as_ref() == "hosts" {
-                        if let Expr::StringLit(s) = *value {
-                            for node in config.hosts_from_name(s.as_ref())? {
+                        if let Expr::StringLit(s, span) = *value {
+                            for node in config
+                                .hosts_from_name(s.as_ref())
+                                .map_err(|e| Error::new(e.to_string(), span))?
+                            {
                                 if !hosts.iter().any(|n| n.host == node.host) {
                                     hosts.push(node);
                                 }
                             }
-                        } else if let Expr::BracketLit { elements, .. } = *value {
+                        } else if let Expr::BracketLit { elements, open } = *value {
                             for seq in elements {
                                 let Seq::Yield(Yield::Elem { value, .. }) = seq else {
-                                    return Err(anyhow!("hosts should be list of strings"));
+                                    return Error::new(
+                                        "hosts should be list of strings",
+                                        Some(open),
+                                    )
+                                    .err();
                                 };
-                                let Expr::StringLit(s) = *value else {
-                                    return Err(anyhow!("hosts should be list of strings"));
+                                let Expr::StringLit(s, span) = *value else {
+                                    return Error::new(
+                                        "hosts should be list of strings",
+                                        Some(open),
+                                    )
+                                    .err();
                                 };
-                                for node in config.hosts_from_name(s.as_ref())? {
+                                for node in config
+                                    .hosts_from_name(s.as_ref())
+                                    .map_err(|e| Error::new(e.to_string(), span))?
+                                {
                                     if !hosts.iter().any(|n| n.host == node.host) {
                                         hosts.push(node);
                                     }
@@ -118,15 +191,23 @@ fn parse_runbook(name: &str, config: &Config, tx: &Sender<AppEvent>) -> Result<V
                             }
                         }
                     } else if s.as_ref() == "name" {
-                        let Expr::StringLit(s) = *value else {
-                            return Err(anyhow!("run name should be a string"));
+                        let Expr::StringLit(s, _) = *value else {
+                            return Error::new("run name should be a string", Some(value_span))
+                                .err();
                         };
                         name = Some(s.to_string());
                     }
                 }
             }
         }
-        let run = Run::from_runbook(cwd, name, &data[span.start()..span.end()], hosts, tx)?;
+        let run = Run::from_runbook(
+            loader,
+            cwd,
+            name,
+            &data[span.start()..span.end()],
+            hosts,
+            tx,
+        )?;
         runs.push(run);
     }
 

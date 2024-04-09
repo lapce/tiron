@@ -3,9 +3,10 @@ use std::{
     path::PathBuf,
 };
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
-use rcl::{markup::MarkupMode, runtime::Value};
+use rcl::{loader::Loader, markup::MarkupMode, runtime::Value};
+use tiron_common::error::Error;
 use tiron_tui::event::AppEvent;
 
 use crate::node::Node;
@@ -31,15 +32,14 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load(tx: &Sender<AppEvent>) -> Result<Config> {
+    pub fn load(loader: &mut Loader, tx: &Sender<AppEvent>) -> Result<Config, Error> {
         let path = match std::env::current_dir() {
             Ok(path) => path.join("tiron.rcl"),
             Err(_) => PathBuf::from("tiron.rcl"),
         };
-        let data = std::fs::read_to_string(&path)
-            .with_context(|| format!("can't reading config {}", path.to_string_lossy()))?;
+        let data = std::fs::read_to_string(path)
+            .map_err(|e| Error::new(format!("can't reading config. Error: {e}",), None))?;
 
-        let mut loader = rcl::loader::Loader::new();
         let id = loader.load_string(data);
         let value = loader
             .evaluate(
@@ -48,17 +48,10 @@ impl Config {
                 id,
                 &mut rcl::tracer::StderrTracer::new(Some(MarkupMode::Ansi)),
             )
-            .map_err(|e| {
-                anyhow!(
-                    "can't parse rcl file: {:?} {:?} {:?}",
-                    e.message,
-                    e.body,
-                    e.origin
-                )
-            })?;
+            .map_err(|e| Error::new("", e.origin))?;
 
-        let Value::Dict(value) = value else {
-            return Err(anyhow!("invalid tiron.rcl: root should be dict"));
+        let Value::Dict(value, dict_span) = value else {
+            return Error::new("root should be dict", *value.span()).err();
         };
 
         let mut config = Config {
@@ -66,13 +59,13 @@ impl Config {
             groups: HashMap::new(),
         };
 
-        if let Some(groups) = value.get(&Value::String("groups".into())) {
-            let Value::Dict(groups) = groups else {
-                return Err(anyhow!("invalid tiron.rcl: hosts should be dict"));
+        if let Some(groups) = value.get(&Value::String("groups".into(), None)) {
+            let Value::Dict(groups, groups_span) = groups else {
+                return Error::new("hosts should be dict", dict_span).err();
             };
             for (key, group) in groups.iter() {
-                let Value::String(group_name) = key else {
-                    return Err(anyhow!("invalid tiron.rcl: group key should be a string"));
+                let Value::String(group_name, _) = key else {
+                    return Error::new("group key should be a string", *groups_span).err();
                 };
                 let group = Self::parse_group(groups, group_name, group)?;
                 config.groups.insert(group_name.to_string(), group);
@@ -86,19 +79,19 @@ impl Config {
         groups: &BTreeMap<Value, Value>,
         group_name: &str,
         value: &Value,
-    ) -> Result<GroupConfig> {
-        let Value::Dict(group) = value else {
-            return Err(anyhow!("invalid tiron.rcl: group value should be a dict"));
+    ) -> Result<GroupConfig, Error> {
+        let Value::Dict(group, group_span) = value else {
+            return Error::new("group value should be a dict", *value.span()).err();
         };
         let mut group_config = GroupConfig {
             hosts: Vec::new(),
             vars: HashMap::new(),
         };
-        let Some(group_hosts) = group.get(&Value::String("hosts".into())) else {
-            return Err(anyhow!("invalid tiron.rcl: group should have hosts"));
+        let Some(group_hosts) = group.get(&Value::String("hosts".into(), None)) else {
+            return Error::new("group should have hosts", *group_span).err();
         };
         let Value::List(group_hosts) = group_hosts else {
-            return Err(anyhow!("invalid tiron.rcl: group value should be a list"));
+            return Error::new("group value should be a list", *group_hosts.span()).err();
         };
 
         for host in group_hosts.iter() {
@@ -106,17 +99,13 @@ impl Config {
             group_config.hosts.push(host_config);
         }
 
-        if let Some(vars) = group.get(&Value::String("vars".into())) {
-            let Value::Dict(vars) = vars else {
-                return Err(anyhow!(
-                    "invalid tiron.rcl: group entry {group_name} vars should be a dict"
-                ));
+        if let Some(vars) = group.get(&Value::String("vars".into(), None)) {
+            let Value::Dict(vars, vars_span) = vars else {
+                return Error::new("group entry vars should be a dict", *vars.span()).err();
             };
             for (key, var) in vars.iter() {
-                let Value::String(key) = key else {
-                    return Err(anyhow!(
-                        "invalid tiron.rcl: group entry {group_name} vars key should be a string"
-                    ));
+                let Value::String(key, _) = key else {
+                    return Error::new("group entry vars key should be a string", *vars_span).err();
                 };
                 group_config.vars.insert(key.to_string(), var.clone());
             }
@@ -129,65 +118,54 @@ impl Config {
         groups: &BTreeMap<Value, Value>,
         group_name: &str,
         value: &Value,
-    ) -> Result<HostOrGroupConfig> {
-        let Value::Dict(host) = value else {
-            return Err(anyhow!("invalid tiron.rcl: group entry should be a dict"));
+    ) -> Result<HostOrGroupConfig, Error> {
+        let Value::Dict(host, host_span) = value else {
+            return Error::new("group entry should be a dict", *value.span()).err();
         };
 
-        if host.contains_key(&Value::String("host".into()))
-            && host.contains_key(&Value::String("group".into()))
+        if host.contains_key(&Value::String("host".into(), None))
+            && host.contains_key(&Value::String("group".into(), None))
         {
-            return Err(anyhow!(
-                "invalid tiron.rcl: group entry can't have host and group at the same time"
-            ));
+            return Error::new(
+                "group entry can't have host and group at the same time",
+                *host_span,
+            )
+            .err();
         }
 
-        let host_or_group = if let Some(v) = host.get(&Value::String("host".into())) {
-            let Value::String(v) = v else {
-                return Err(anyhow!(
-                    "invalid tiron.rcl: group entry host value should be a string"
-                ));
+        let host_or_group = if let Some(v) = host.get(&Value::String("host".into(), None)) {
+            let Value::String(v, _) = v else {
+                return Error::new("group entry host value should be a string", *v.span()).err();
             };
             HostOrGroup::Host(v.to_string())
-        } else if let Some(v) = host.get(&Value::String("group".into())) {
-            let Value::String(v) = v else {
-                return Err(anyhow!(
-                    "invalid tiron.rcl: group entry group value should be a string"
-                ));
+        } else if let Some(v) = host.get(&Value::String("group".into(), None)) {
+            let Value::String(v, v_span) = v else {
+                return Error::new("group entry group value should be a string", *v.span()).err();
             };
             if v.as_ref() == group_name {
-                return Err(anyhow!(
-                    "invalid tiron.rcl: group entry group can't point to itself"
-                ));
+                return Error::new("group entry group can't point to itself", *v_span).err();
             }
-            if !groups.contains_key(&Value::String(v.clone())) {
-                return Err(anyhow!(
-                    "invalid tiron.rcl: group entry group {v} doesn't exist"
-                ));
+            if !groups.contains_key(&Value::String(v.clone(), None)) {
+                return Error::new("group entry group doesn't exist", *v_span).err();
             }
 
             HostOrGroup::Group(v.to_string())
         } else {
-            return Err(anyhow!(
-                "invalid tiron.rcl: group entry should have either host or group"
-            ));
+            return Error::new("group entry should have either host or group", *host_span).err();
         };
         let mut host_config = HostOrGroupConfig {
             host: host_or_group,
             vars: HashMap::new(),
         };
 
-        if let Some(vars) = host.get(&Value::String("vars".into())) {
-            let Value::Dict(vars) = vars else {
-                return Err(anyhow!(
-                    "invalid tiron.rcl: group entry {group_name} vars should be a dict"
-                ));
+        if let Some(vars) = host.get(&Value::String("vars".into(), None)) {
+            let Value::Dict(vars, _) = vars else {
+                return Error::new("group entry vars should be a dict", *vars.span()).err();
             };
             for (key, var) in vars.iter() {
-                let Value::String(key) = key else {
-                    return Err(anyhow!(
-                        "invalid tiron.rcl: group entry {group_name} vars key should be a string"
-                    ));
+                let Value::String(key, _) = key else {
+                    return Error::new("group entry vars key should be a string", *var.span())
+                        .err();
                 };
                 host_config.vars.insert(key.to_string(), var.clone());
             }
@@ -238,7 +216,7 @@ impl Config {
                         for (key, val) in &host_or_group.vars {
                             if !host.vars.contains_key(key) {
                                 if key == "remote_user" && host.remote_user.is_none() {
-                                    host.remote_user = if let Value::String(s) = val {
+                                    host.remote_user = if let Value::String(s, _) = val {
                                         Some(s.to_string())
                                     } else {
                                         None
@@ -255,7 +233,7 @@ impl Config {
                 for (key, val) in &group.vars {
                     if !host.vars.contains_key(key) {
                         if key == "remote_user" && host.remote_user.is_none() {
-                            host.remote_user = if let Value::String(s) = val {
+                            host.remote_user = if let Value::String(s, _) = val {
                                 Some(s.to_string())
                             } else {
                                 None
