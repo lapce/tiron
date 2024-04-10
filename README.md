@@ -9,11 +9,11 @@
   <a href="https://github.com/lapce/tiron/actions/workflows/ci.yml" target="_blank">
     <img src="https://github.com/lapce/tiron/actions/workflows/ci.yml/badge.svg" />
   </a>
-  <a href="https://github.com/lapce/tiron/releases" target="_blank">
-    <img src="https://img.shields.io/github/v/release/lapce/tiron" />
-  </a>
   <a href="https://discord.gg/GK4uSQMT4X" target="_blank">
     <img src="https://img.shields.io/discord/946858761413328946?logo=discord" />
+  </a>
+  <a href="https://github.com/lapce/tiron/releases" target="_blank">
+    <img src="https://img.shields.io/github/v/release/lapce/tiron" />
   </a>
 </div>
 
