@@ -32,7 +32,7 @@ main() {
     OS=${OS:-$(os)}
     ARCH=${ARCH:-$(arch)}
     VERSION=$(echo_latest_stable_version)
-    curl -L "https://github.com/lapce/tiron/releases/download/v$VERSION/tiron-${VERSION}-${OS}-${ARCH}.gz" | sudo sh -c 'gzip -d > /usr/local/bin/tiron' && sudo chmod +x /usr/local/bin/tiron
+    curl -sL "https://github.com/lapce/tiron/releases/download/v$VERSION/tiron-${VERSION}-${OS}-${ARCH}.gz" | sudo sh -c 'gzip -d > /usr/local/bin/tiron' && sudo chmod +x /usr/local/bin/tiron
 }
 
 main "$@"
