@@ -6,6 +6,9 @@
 </div>
 
 <div align="center">
+  <a href="https://github.com/lapce/tiron/releases" target="_blank">
+    <img src="https://img.shields.io/github/v/release/lapce/tiron" />
+  </a>
   <a href="https://github.com/lapce/tiron/actions/workflows/ci.yml" target="_blank">
     <img src="https://github.com/lapce/tiron/actions/workflows/ci.yml/badge.svg" />
   </a>
