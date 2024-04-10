@@ -54,6 +54,7 @@ jobs:
           gzip -c ./target/aarch64-unknown-linux-gnu/release/tiron-node > ./tiron-node-${{ github.event.inputs.tiron_version }}-linux-arm64.gz
           gzip -c ./target/x86_64-unknown-linux-gnu/release/tiron-lsp > ./tiron-lsp-${{ github.event.inputs.tiron_version }}-linux-amd64.gz
           gzip -c ./target/aarch64-unknown-linux-gnu/release/tiron-lsp > ./tiron-lsp-${{ github.event.inputs.tiron_version }}-linux-arm64.gz
+          cp ./github/scripts/install.sh ./install.sh
       
       - uses: actions/upload-artifact@v4
         with:
@@ -65,6 +66,7 @@ jobs:
             ./tiron-node-${{ github.event.inputs.tiron_version }}-linux-arm64.gz
             ./tiron-lsp-${{ github.event.inputs.tiron_version }}-linux-amd64.gz
             ./tiron-lsp-${{ github.event.inputs.tiron_version }}-linux-arm64.gz
+            ./install.sh
           retention-days: 1
         
   macos:
