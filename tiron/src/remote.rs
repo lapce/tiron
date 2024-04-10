@@ -74,7 +74,10 @@ impl SshRemote {
     }
 }
 
-pub fn start_remote(remote: SshRemote) -> Result<(Sender<NodeMessage>, Receiver<ActionMessage>)> {
+pub fn start_remote(
+    remote: SshRemote,
+    sudo: bool,
+) -> Result<(Sender<NodeMessage>, Receiver<ActionMessage>)> {
     let (platform, architecture) = host_specification(&remote)?;
 
     if platform == HostPlatform::UnknownOS {
@@ -131,12 +134,16 @@ pub fn start_remote(remote: SshRemote) -> Result<(Sender<NodeMessage>, Receiver<
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?,
-        _ => remote
-            .command_builder()
-            .arg(&tiron_node_file)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()?,
+        _ => {
+            let mut cmd = remote.command_builder();
+            if sudo {
+                cmd.arg("sudo");
+            }
+            cmd.arg(&tiron_node_file)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn()?
+        }
     };
     let stdin = child
         .stdin

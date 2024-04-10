@@ -3,6 +3,7 @@
         name = "initial run",
         hosts = "production",
         remote_user = "dz",
+        become = true,
         actions = [
             { action = "copy", params = {src = "/tmp/test.rcl", dest = "/tmp/test.conf" }},
             { action = "job",  params = {name = "job1"} },

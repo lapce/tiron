@@ -42,6 +42,7 @@ impl Run {
                 host: "localhost".to_string(),
                 vars: HashMap::new(),
                 remote_user: None,
+                become_: false,
                 actions: Vec::new(),
                 tx: config.tx.clone(),
             }]
@@ -95,6 +96,17 @@ impl Run {
                 };
                 if host.remote_user.is_none() {
                     host.remote_user = Some(remote_user.to_string());
+                }
+            }
+
+            if let Some(become_) = dict.get(&Value::String("become".into(), None)) {
+                let Value::Bool(b) = become_ else {
+                    return Error::new("become should be a bool")
+                        .with_origin(*become_.span())
+                        .err();
+                };
+                if *b {
+                    host.become_ = true;
                 }
             }
 

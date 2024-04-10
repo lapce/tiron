@@ -20,6 +20,7 @@ pub struct Node {
     pub id: Uuid,
     pub host: String,
     pub remote_user: Option<String>,
+    pub become_: bool,
     pub vars: HashMap<String, Value>,
     pub actions: Vec<ActionData>,
     pub tx: Sender<AppEvent>,
@@ -37,6 +38,10 @@ impl Node {
                     None
                 }
             }),
+            become_: vars
+                .get("become")
+                .map(|v| if let Value::Bool(b) = v { *b } else { false })
+                .unwrap_or(false),
             vars,
             actions: Vec::new(),
             tx: tx.clone(),
@@ -95,13 +100,16 @@ impl Node {
         if self.host == "localhost" || self.host == "127.0.0.1" {
             Ok(start_local())
         } else {
-            start_remote(SshRemote {
-                ssh: SshHost {
-                    host: self.host.clone(),
-                    port: None,
-                    user: self.remote_user.clone(),
+            start_remote(
+                SshRemote {
+                    ssh: SshHost {
+                        host: self.host.clone(),
+                        port: None,
+                        user: self.remote_user.clone(),
+                    },
                 },
-            })
+                self.become_,
+            )
         }
     }
 }
