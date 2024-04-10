@@ -30,5 +30,12 @@
 * **Correctness:** Tiron pre validates all the rcl files and will throw errors before the task is started to execute.
 * **Speed:** On validating all the input, Tiron also pre populates all the data for tasks, and send them to the remote machines in one go to save the roundtrips between the client and remote.  
 
+## Quickstart
+
+Run below to install latest Tiron binary to ```/usr/local/bin```
+```bash
+curl -L https://tiron.run/install.sh | sh
+```
+
 ## License
 Tiron is licensed under the Apache 2.0 license.
