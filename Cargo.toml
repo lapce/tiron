@@ -36,6 +36,8 @@ members = [
 ]
 
 [workspace.dependencies]
+os_info           = "3.7"
+itertools         = "0.12.1"
 documented        = "0.4.1"
 ratatui           = "0.26.1"
 crossterm         = "0.27.0"
@@ -51,5 +53,5 @@ tiron             = { path = "./tiron" }
 tiron-tui         = { path = "./tiron-tui" }
 tiron-node        = { path = "./tiron-node" }
 tiron-common      = { path = "./tiron-common" }
-rcl               = { git = "https://github.com/lapce/rcl", rev = "6a701258db13ef013f9c19c0018fe39b88101848" }
+rcl               = { git = "https://github.com/lapce/rcl", rev = "78796fe8845a2a129b21093604006501fa5cde24" }
 # rcl               = { path = "../rcl" }

@@ -1,21 +1,19 @@
 use std::{collections::HashMap, path::Path, sync::Arc};
 
 use anyhow::Result;
-use crossbeam_channel::Sender;
 use rcl::{
+    error::Error,
     loader::Loader,
     markup::MarkupMode,
+    pprint::Doc,
     runtime::Value,
+    source::Span,
     types::{SourcedType, Type},
 };
-use tiron_common::error::Error;
-use tiron_tui::{
-    event::AppEvent,
-    run::{ActionSection, HostSection, RunPanel},
-};
+use tiron_tui::run::{ActionSection, HostSection, RunPanel};
 use uuid::Uuid;
 
-use crate::{action::parse_actions, node::Node};
+use crate::{action::parse_actions, config::Config, node::Node};
 
 pub struct Run {
     pub id: Uuid,
@@ -28,10 +26,16 @@ impl Run {
         loader: &mut Loader,
         cwd: &Path,
         name: Option<String>,
-        content: &str,
+        origin: Span,
         hosts: Vec<Node>,
-        tx: &Sender<AppEvent>,
+        config: &Config,
     ) -> Result<Self, Error> {
+        let doc = origin.doc();
+        let start_line = {
+            let doc = loader.get_doc(doc);
+            origin.start_line(doc.data)
+        };
+
         let hosts = if hosts.is_empty() {
             vec![Node {
                 id: Uuid::new_v4(),
@@ -39,7 +43,7 @@ impl Run {
                 vars: HashMap::new(),
                 remote_user: None,
                 actions: Vec::new(),
-                tx: tx.clone(),
+                tx: config.tx.clone(),
             }]
         } else {
             hosts
@@ -52,39 +56,56 @@ impl Run {
         };
 
         for host in run.hosts.iter_mut() {
-            let id = loader.load_string(content.to_string());
+            let doc = loader.get_doc(doc);
+            let content = origin.resolve(doc.data);
+            let id = loader.load_string(
+                content.to_string(),
+                Some(doc.name.to_string()),
+                start_line.saturating_sub(1),
+            );
             let mut type_env = rcl::typecheck::prelude();
             let mut env = rcl::runtime::prelude();
             for (name, value) in &host.vars {
                 type_env.push(name.as_str().into(), value_to_type(value));
                 env.push(name.as_str().into(), value.clone());
             }
-            let value = loader
-                .evaluate(
-                    &mut type_env,
-                    &mut env,
-                    id,
-                    &mut rcl::tracer::StderrTracer::new(Some(MarkupMode::Ansi)),
-                )
-                .map_err(|e| Error::new("", e.origin))?;
+            let value = loader.evaluate(
+                &mut type_env,
+                &mut env,
+                id,
+                &mut rcl::tracer::StderrTracer::new(Some(MarkupMode::Ansi)),
+            )?;
 
             let Value::Dict(dict, dict_span) = value else {
-                return Error::new("run should be a dict", *value.span()).err();
+                return Error::new("run should be a dict")
+                    .with_origin(*value.span())
+                    .err();
             };
             let Some(value) = dict.get(&Value::String("actions".into(), None)) else {
-                return Error::new("run should have actions", dict_span).err();
+                return Error::new("run should have actions")
+                    .with_origin(dict_span)
+                    .err();
             };
 
             if let Some(remote_user) = dict.get(&Value::String("remote_user".into(), None)) {
                 let Value::String(remote_user, _) = remote_user else {
-                    return Error::new("remote_user should be a string", *remote_user.span()).err();
+                    return Error::new("remote_user should be a string")
+                        .with_origin(*remote_user.span())
+                        .err();
                 };
                 if host.remote_user.is_none() {
                     host.remote_user = Some(remote_user.to_string());
                 }
             }
 
-            let actions = parse_actions(cwd, value, &host.vars)?;
+            let mut job_depth = 0;
+            let actions = parse_actions(loader, cwd, value, &host.vars, &mut job_depth, config)
+                .map_err(|mut e| {
+                    e.message =
+                        Doc::string(format!("parsing actions for host {} error: ", host.host))
+                            + e.message;
+                    e
+                })?;
             host.actions = actions;
         }
 

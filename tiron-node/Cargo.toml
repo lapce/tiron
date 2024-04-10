@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+os_info           = { workspace = true }
 documented        = { workspace = true }
 uuid              = { workspace = true }
 rcl               = { workspace = true }
