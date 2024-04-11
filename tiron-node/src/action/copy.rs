@@ -24,6 +24,30 @@ impl Action for CopyAction {
         "copy".to_string()
     }
 
+    fn doc(&self) -> ActionDoc {
+        ActionDoc {
+            description: CopyAction::DOCS.to_string(),
+            params: vec![
+                ActionParamDoc {
+                    name: "src".to_string(),
+                    required: true,
+                    description: CopyAction::get_field_docs("src")
+                        .unwrap_or_default()
+                        .to_string(),
+                    type_: vec![ActionParamType::String],
+                },
+                ActionParamDoc {
+                    name: "dest".to_string(),
+                    required: true,
+                    description: CopyAction::get_field_docs("dest")
+                        .unwrap_or_default()
+                        .to_string(),
+                    type_: vec![ActionParamType::String],
+                },
+            ],
+        }
+    }
+
     fn input(&self, cwd: &Path, params: Option<&Value>) -> Result<Vec<u8>, Error> {
         let Some(value) = params else {
             return Error::new("can't find params").err();
@@ -90,30 +114,6 @@ impl Action for CopyAction {
             Ok(format!("copy to {}", input.dest))
         } else {
             Err(anyhow!("can't copy to {}", input.dest))
-        }
-    }
-
-    fn doc(&self) -> ActionDoc {
-        ActionDoc {
-            description: CopyAction::DOCS.to_string(),
-            params: vec![
-                ActionParamDoc {
-                    name: "src".to_string(),
-                    required: true,
-                    description: CopyAction::get_field_docs("src")
-                        .unwrap_or_default()
-                        .to_string(),
-                    type_: vec![ActionParamType::String],
-                },
-                ActionParamDoc {
-                    name: "dest".to_string(),
-                    required: true,
-                    description: CopyAction::get_field_docs("dest")
-                        .unwrap_or_default()
-                        .to_string(),
-                    type_: vec![ActionParamType::String],
-                },
-            ],
         }
     }
 }

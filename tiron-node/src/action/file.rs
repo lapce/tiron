@@ -4,7 +4,7 @@ use documented::{Documented, DocumentedFields};
 use rcl::{error::Error, runtime::Value};
 use serde::{Deserialize, Serialize};
 
-use super::{Action, ActionDoc, ActionParamDoc, ActionParamType};
+use super::{Action, ActionDoc, ActionParamBaseValue, ActionParamDoc, ActionParamType};
 
 #[derive(Default, Clone, Serialize, Deserialize)]
 pub enum FileState {
@@ -125,7 +125,11 @@ impl Action for FileAction {
                     description: Self::get_field_docs("state")
                         .unwrap_or_default()
                         .to_string(),
-                    type_: vec![ActionParamType::String],
+                    type_: vec![ActionParamType::Enum(vec![
+                        ActionParamBaseValue::String("file".to_string()),
+                        ActionParamBaseValue::String("absent".to_string()),
+                        ActionParamBaseValue::String("directory".to_string()),
+                    ])],
                 },
             ],
         }

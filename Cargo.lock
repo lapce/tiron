@@ -713,6 +713,7 @@ dependencies = [
  "clap",
  "crossbeam-channel",
  "documented",
+ "itertools",
  "os_info",
  "rcl",
  "serde",

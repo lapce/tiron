@@ -9,7 +9,9 @@ use tiron_common::action::{ActionId, ActionMessage};
 
 use self::provider::PackageProvider;
 
-use super::{Action, ActionDoc, ActionParamBaseType, ActionParamDoc, ActionParamType};
+use super::{
+    Action, ActionDoc, ActionParamBaseType, ActionParamBaseValue, ActionParamDoc, ActionParamType,
+};
 
 #[derive(Default, Clone, Serialize, Deserialize)]
 pub enum PackageState {
@@ -137,7 +139,11 @@ impl Action for PackageAction {
                     description: PackageAction::get_field_docs("state")
                         .unwrap_or_default()
                         .to_string(),
-                    type_: vec![ActionParamType::String],
+                    type_: vec![ActionParamType::Enum(vec![
+                        ActionParamBaseValue::String("present".to_string()),
+                        ActionParamBaseValue::String("absent".to_string()),
+                        ActionParamBaseValue::String("latest".to_string()),
+                    ])],
                 },
             ],
         }

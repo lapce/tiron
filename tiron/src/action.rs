@@ -96,6 +96,7 @@ pub fn parse_actions(
                     .err();
             };
             let params = dict.get(&Value::String("params".into(), None));
+            let _ = action.doc().parse_params(params)?;
             let input = action.input(cwd, params).map_err(|e| {
                 let mut e = e;
                 if e.origin.is_none() {
