@@ -4,6 +4,8 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+tempfile          = { workspace = true }
+serde_json        = { workspace = true }
 os_info           = { workspace = true }
 documented        = { workspace = true }
 uuid              = { workspace = true }

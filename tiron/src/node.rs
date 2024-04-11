@@ -64,6 +64,7 @@ impl Node {
         };
 
         {
+            let node_tx = tx.clone();
             let tx = self.tx.clone();
             let host_id = self.id;
             std::thread::spawn(move || {
@@ -85,6 +86,9 @@ impl Node {
                     });
                 }
                 let _ = exit_tx.send(false);
+                // this doens't do anything but to hold the node's tx
+                // so that it doesn't get dropped
+                node_tx.is_empty();
             });
         }
 

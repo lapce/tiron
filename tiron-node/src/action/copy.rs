@@ -1,13 +1,13 @@
-use std::path::{Path, PathBuf};
+use std::{io::Write, path::Path};
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
 use documented::{Documented, DocumentedFields};
 use rcl::{error::Error, runtime::Value};
 use serde::{Deserialize, Serialize};
 use tiron_common::action::{ActionId, ActionMessage};
 
-use super::{Action, ActionDoc, ActionParamDoc, ActionParamType};
+use super::{command::run_command, Action, ActionDoc, ActionParamDoc, ActionParamType};
 
 /// Copy the file to the remote machine
 #[derive(Default, Clone, Serialize, Deserialize, Documented, DocumentedFields)]
@@ -72,12 +72,25 @@ impl Action for CopyAction {
         Ok(input)
     }
 
-    fn execute(&self, _id: ActionId, bytes: &[u8], _tx: &Sender<ActionMessage>) -> Result<String> {
+    fn execute(&self, id: ActionId, bytes: &[u8], tx: &Sender<ActionMessage>) -> Result<String> {
         let input: CopyAction = bincode::deserialize(bytes)?;
-        let dest = PathBuf::from(&input.dest);
-        std::fs::write(dest, input.content)
-            .with_context(|| format!("can't copy to dest {}", input.dest))?;
-        Ok(format!("copy to {}", input.dest))
+        let mut temp = tempfile::NamedTempFile::new()?;
+        temp.write_all(&input.content)?;
+        temp.flush()?;
+        let status = run_command(
+            id,
+            tx,
+            "cp",
+            &[
+                temp.path().to_string_lossy().to_string(),
+                input.dest.clone(),
+            ],
+        )?;
+        if status.success() {
+            Ok(format!("copy to {}", input.dest))
+        } else {
+            Err(anyhow!("can't copy to {}", input.dest))
+        }
     }
 
     fn doc(&self) -> ActionDoc {

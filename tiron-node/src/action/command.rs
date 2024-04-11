@@ -23,7 +23,11 @@ pub fn run_command(
     for arg in args {
         cmd.arg(arg);
     }
-    let mut child = cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
+    let mut child = cmd
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .stdin(Stdio::null())
+        .spawn()?;
 
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();

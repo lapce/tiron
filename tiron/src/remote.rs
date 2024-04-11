@@ -136,12 +136,15 @@ pub fn start_remote(
             .spawn()?,
         _ => {
             let mut cmd = remote.command_builder();
-            if sudo {
-                cmd.arg("sudo");
-            }
-            cmd.arg(&tiron_node_file)
+            let arg = if sudo {
+                format!("sudo {tiron_node_file}")
+            } else {
+                tiron_node_file
+            };
+            cmd.arg(&arg)
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
+                .stderr(Stdio::null())
                 .spawn()?
         }
     };
