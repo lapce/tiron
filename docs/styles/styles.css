@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .markdown-content {
+  }
+  
+  .markdown-content h1 {
+    @apply text-4xl font-bold max-w-3xl mx-auto mb-6;
+  }
+  
+  .markdown-content h3 {
+    @apply text-2xl font-semibold max-w-3xl w-full mx-auto mt-5;
+  }
+  
+  .markdown-content p {
+    @apply max-w-3xl w-full mx-auto mt-5;
+  }
+  
+  .markdown-content code {
+    @apply bg-gray-200 px-1.5 rounded;
+  }
+  
+  .markdown-content a {
+    @apply text-pink-500;
+  }
+  
+  .markdown-content a:hover {
+    @apply text-pink-400 underline;
+  }
+}
