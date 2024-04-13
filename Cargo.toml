@@ -36,8 +36,8 @@ members = [
 ]
 
 [workspace.dependencies]
-hcl-rs            = "0.16.8"
-hcl-edit          = "0.7.6"
+hcl-rs            = { git = "https://github.com/lapce/hcl-rs", rev = "fb0ac2875760a8219899f5a4d774d0996a5b06dd" }
+hcl-edit          = { git = "https://github.com/lapce/hcl-rs", rev = "fb0ac2875760a8219899f5a4d774d0996a5b06dd" }
 tempfile          = "3.10.1"
 os_info           = "3.7"
 itertools         = "0.12.1"

@@ -12,17 +12,16 @@ use hcl_edit::structure::{Block, BlockLabel, Structure};
 use itertools::Itertools;
 use rcl::{
     ast::{Expr, Seq, Yield},
-    error::Error,
     loader::Loader,
     markup::{MarkupMode, MarkupString},
     pprint::{self, Doc},
 };
+use tiron_common::error::{Error, Origin};
 use tiron_node::action::data::all_actions;
 use tiron_tui::event::{AppEvent, RunEvent};
 use uuid::Uuid;
 
 use crate::{
-    action::parse_actions_new,
     cli::{Cli, CliCmd},
     config::{Config, GroupConfig, HostOrGroup, HostOrGroupConfig},
     job::Job,
@@ -131,8 +130,14 @@ impl Runbook {
             ))
         })?;
 
-        let body = hcl_edit::parser::parse_body(&data)
-            .map_err(|e| Error::new(e.to_string().replace('\n', " ")))?;
+        let origin = Origin {
+            cwd: cwd.to_path_buf(),
+            path: path.to_path_buf(),
+            data,
+        };
+
+        let body = hcl_edit::parser::parse_body(&origin.data)
+            .map_err(|e| Error::new(e.message().to_string()))?;
 
         for structure in body.iter() {
             if let Structure::Block(block) = structure {
@@ -147,7 +152,7 @@ impl Runbook {
                         self.parse_job(block)?;
                     }
                     "run" => {
-                        self.parse_run(cwd, block)?;
+                        self.parse_run(&origin, block)?;
                     }
                     _ => {}
                 }
@@ -157,7 +162,7 @@ impl Runbook {
         Ok(())
     }
 
-    fn parse_run(&mut self, cwd: &Path, block: &Block) -> Result<(), Error> {
+    fn parse_run(&mut self, origin: &Origin, block: &Block) -> Result<(), Error> {
         let mut hosts: Vec<Node> = Vec::new();
         if block.labels.is_empty() {
             return Error::new("You need put group name after run").err();
@@ -191,7 +196,7 @@ impl Runbook {
         } else {
             hosts
         };
-        let run = Run::from_block(cwd, None, block, hosts)?;
+        let run = Run::from_block(origin, None, block, hosts)?;
         self.runs.push(run);
         Ok(())
     }
@@ -591,139 +596,10 @@ pub fn run(loader: &mut Loader, runbooks: Vec<String>, check: bool) -> Result<Ve
             Ok(())
         });
 
-        app.start()
-            .map_err(|e| Error::new(e.to_string()).with_origin(None))?;
+        app.start().map_err(|e| Error::new(e.to_string()))?;
     }
 
     Ok(runbooks)
-}
-
-fn parse_runbook(loader: &mut Loader, path: &Path, config: &Config) -> Result<Vec<Run>, Error> {
-    let cwd = path
-        .parent()
-        .ok_or_else(|| Error::new(format!("can't find parent for {}", path.to_string_lossy())))?;
-
-    let data = std::fs::read_to_string(path).map_err(|e| {
-        Error::new(format!(
-            "can't read runbook {} error: {e}",
-            path.to_string_lossy()
-        ))
-    })?;
-
-    let body = hcl_edit::parser::parse_body(&data)
-        .map_err(|e| Error::new(e.to_string().replace('\n', " ")))?;
-    let mut runs = Vec::new();
-    for structure in body.iter() {
-        if let Structure::Block(block) = structure {
-            if block.ident.as_str() == "run" {
-                let mut hosts: Vec<Node> = Vec::new();
-                if block.labels.is_empty() {
-                    return Error::new("You need put group name after run").err();
-                }
-                if block.labels.len() > 1 {
-                    return Error::new("You can only have one group name to run").err();
-                }
-                let BlockLabel::String(name) = &block.labels[0] else {
-                    return Error::new("group name should be a string").err();
-                };
-                for node in config
-                    .hosts_from_name(name.as_str())
-                    .map_err(|e| Error::new(e.to_string()))?
-                {
-                    if !hosts.iter().any(|n| n.host == node.host) {
-                        hosts.push(node);
-                    }
-                }
-                let run = Run::from_block(cwd, None, block, hosts)?;
-                runs.push(run);
-            }
-        }
-    }
-
-    let id = loader.load_string(data.clone(), Some(path.to_string_lossy().to_string()), 0);
-
-    let ast = loader.get_unchecked_ast(id)?;
-
-    let mut runs = Vec::new();
-    let Expr::BracketLit { elements, open } = ast else {
-        return Error::new("runbook should be a list").err();
-    };
-    for seq in elements {
-        let mut hosts: Vec<Node> = Vec::new();
-        let mut name: Option<String> = None;
-
-        let Seq::Yield(Yield::Elem { value, span }) = seq else {
-            return Error::new("run should be a dict")
-                .with_origin(Some(open))
-                .err();
-        };
-        let Expr::BraceLit { elements, .. } = *value else {
-            return Error::new("run should be a dict")
-                .with_origin(Some(span))
-                .err();
-        };
-
-        for seq in elements {
-            if let Seq::Yield(Yield::Assoc {
-                key,
-                value,
-                value_span,
-                ..
-            }) = seq
-            {
-                if let Expr::StringLit(s, hosts_span) = *key {
-                    if s.as_ref() == "hosts" {
-                        if let Expr::StringLit(s, span) = *value {
-                            for node in config
-                                .hosts_from_name(s.as_ref())
-                                .map_err(|e| Error::new(e.to_string()).with_origin(span))?
-                            {
-                                if !hosts.iter().any(|n| n.host == node.host) {
-                                    hosts.push(node);
-                                }
-                            }
-                        } else if let Expr::BracketLit { elements, open } = *value {
-                            for seq in elements {
-                                let Seq::Yield(Yield::Elem { value, span }) = seq else {
-                                    return Error::new("hosts should be list of strings")
-                                        .with_origin(Some(open))
-                                        .err();
-                                };
-                                let Expr::StringLit(s, span) = *value else {
-                                    return Error::new("hosts should be list of strings")
-                                        .with_origin(Some(span))
-                                        .err();
-                                };
-                                for node in config
-                                    .hosts_from_name(s.as_ref())
-                                    .map_err(|e| Error::new(e.to_string()).with_origin(span))?
-                                {
-                                    if !hosts.iter().any(|n| n.host == node.host) {
-                                        hosts.push(node);
-                                    }
-                                }
-                            }
-                        } else {
-                            return Error::new("hosts should be a string or list of strings")
-                                .with_origin(hosts_span)
-                                .err();
-                        }
-                    } else if s.as_ref() == "name" {
-                        let Expr::StringLit(s, _) = *value else {
-                            return Error::new("run name should be a string")
-                                .with_origin(Some(value_span))
-                                .err();
-                        };
-                        name = Some(s.to_string());
-                    }
-                }
-            }
-        }
-        let run = Run::from_runbook(loader, cwd, name, span, hosts, config)?;
-        runs.push(run);
-    }
-
-    Ok(runs)
 }
 
 fn parse_use(block: &Block) {}

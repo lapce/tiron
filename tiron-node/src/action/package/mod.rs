@@ -3,9 +3,11 @@ mod provider;
 use anyhow::anyhow;
 use crossbeam_channel::Sender;
 use documented::{Documented, DocumentedFields};
-use rcl::error::Error;
 use serde::{Deserialize, Serialize};
-use tiron_common::action::{ActionId, ActionMessage};
+use tiron_common::{
+    action::{ActionId, ActionMessage},
+    error::Error,
+};
 
 use self::provider::PackageProvider;
 
@@ -70,7 +72,7 @@ impl Action for PackageAction {
         }
     }
 
-    fn input(&self, _cwd: &std::path::Path, params: ActionParams) -> Result<Vec<u8>, Error> {
+    fn input(&self, params: ActionParams) -> Result<Vec<u8>, Error> {
         let name = params.values[0].as_ref().unwrap();
         let names = if let Some(s) = name.string() {
             vec![s.to_string()]
@@ -92,7 +94,8 @@ impl Action for PackageAction {
 
         let input = PackageAction { name: names, state };
         let input = bincode::serialize(&input).map_err(|e| {
-            Error::new(format!("serialize action input error: {e}")).with_origin(params.span)
+            Error::new(format!("serialize action input error: {e}"))
+                .with_origin(params.origin, &params.span)
         })?;
         Ok(input)
     }

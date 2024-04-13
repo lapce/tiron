@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use documented::{Documented, DocumentedFields};
-use rcl::error::Error;
 use serde::{Deserialize, Serialize};
+use tiron_common::error::Error;
 
 use super::{
     Action, ActionDoc, ActionParamBaseValue, ActionParamDoc, ActionParamType, ActionParams,
@@ -64,7 +64,7 @@ impl Action for FileAction {
         }
     }
 
-    fn input(&self, _cwd: &std::path::Path, params: ActionParams) -> Result<Vec<u8>, Error> {
+    fn input(&self, params: ActionParams) -> Result<Vec<u8>, Error> {
         let path = params.expect_string(0);
         let mut input = FileAction {
             path: path.to_string(),
@@ -83,7 +83,8 @@ impl Action for FileAction {
         }
 
         let input = bincode::serialize(&input).map_err(|e| {
-            Error::new(format!("serialize action input error: {e}")).with_origin(params.span)
+            Error::new(format!("serialize action input error: {e}"))
+                .with_origin(params.origin, &params.span)
         })?;
         Ok(input)
     }

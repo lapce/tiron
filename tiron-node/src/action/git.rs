@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use documented::{Documented, DocumentedFields};
-use rcl::error::Error;
 use serde::{Deserialize, Serialize};
+use tiron_common::error::Error;
 
 use super::{
     command::run_command, Action, ActionDoc, ActionParamDoc, ActionParamType, ActionParams,
@@ -41,7 +41,7 @@ impl Action for GitAction {
         }
     }
 
-    fn input(&self, _cwd: &std::path::Path, params: ActionParams) -> Result<Vec<u8>, Error> {
+    fn input(&self, params: ActionParams) -> Result<Vec<u8>, Error> {
         let repo = params.expect_string(0);
         let dest = params.expect_string(1);
 
@@ -50,7 +50,8 @@ impl Action for GitAction {
             dest: dest.to_string(),
         };
         let input = bincode::serialize(&input).map_err(|e| {
-            Error::new(format!("serialize action input error: {e}")).with_origin(params.span)
+            Error::new(format!("serialize action input error: {e}"))
+                .with_origin(params.origin, &params.span)
         })?;
         Ok(input)
     }

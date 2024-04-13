@@ -7,9 +7,11 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
 use documented::{Documented, DocumentedFields};
-use rcl::error::Error;
 use serde::{Deserialize, Serialize};
-use tiron_common::action::{ActionId, ActionMessage, ActionOutputLevel};
+use tiron_common::{
+    action::{ActionId, ActionMessage, ActionOutputLevel},
+    error::Error,
+};
 
 use super::{
     Action, ActionDoc, ActionParamBaseType, ActionParamDoc, ActionParamType, ActionParams,
@@ -114,7 +116,7 @@ impl Action for CommandAction {
         }
     }
 
-    fn input(&self, _cwd: &Path, params: ActionParams) -> Result<Vec<u8>, Error> {
+    fn input(&self, params: ActionParams) -> Result<Vec<u8>, Error> {
         let cmd = params.expect_string(0);
 
         let args = if let Some(list) = params.list(1) {
@@ -132,7 +134,8 @@ impl Action for CommandAction {
             args: args.unwrap_or_default(),
         };
         let input = bincode::serialize(&input).map_err(|e| {
-            Error::new(format!("serialize action input error: {e}")).with_origin(params.span)
+            Error::new(format!("serialize action input error: {e}"))
+                .with_origin(params.origin, &params.span)
         })?;
         Ok(input)
     }

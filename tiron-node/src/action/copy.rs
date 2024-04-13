@@ -3,9 +3,11 @@ use std::{io::Write, path::Path};
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
 use documented::{Documented, DocumentedFields};
-use rcl::error::Error;
 use serde::{Deserialize, Serialize};
-use tiron_common::action::{ActionId, ActionMessage};
+use tiron_common::{
+    action::{ActionId, ActionMessage},
+    error::Error,
+};
 
 use super::{
     command::run_command, Action, ActionDoc, ActionParamDoc, ActionParamType, ActionParams,
@@ -50,17 +52,20 @@ impl Action for CopyAction {
         }
     }
 
-    fn input(&self, cwd: &Path, params: ActionParams) -> Result<Vec<u8>, Error> {
+    fn input(&self, params: ActionParams) -> Result<Vec<u8>, Error> {
         let (src, src_span) = params.expect_string_with_span(0);
-        let src_file = cwd.join(src);
+        let src_file = params.origin.cwd.join(src);
         let meta = src_file
             .metadata()
-            .map_err(|_| Error::new("can't find src file").with_origin(*src_span))?;
+            .map_err(|_| Error::new("can't find src file").with_origin(params.origin, src_span))?;
         if !meta.is_file() {
-            return Error::new("src isn't a file").with_origin(*src_span).err();
+            return Error::new("src isn't a file")
+                .with_origin(params.origin, src_span)
+                .err();
         }
-        let content = std::fs::read(&src_file)
-            .map_err(|e| Error::new(format!("read src file error: {e}")).with_origin(*src_span))?;
+        let content = std::fs::read(&src_file).map_err(|e| {
+            Error::new(format!("read src file error: {e}")).with_origin(params.origin, src_span)
+        })?;
 
         let dest = params.expect_string(1);
 
@@ -70,7 +75,8 @@ impl Action for CopyAction {
             dest: dest.to_string(),
         };
         let input = bincode::serialize(&input).map_err(|e| {
-            Error::new(format!("serialize action input error: {e}")).with_origin(params.span)
+            Error::new(format!("serialize action input error: {e}"))
+                .with_origin(params.origin, &params.span)
         })?;
 
         Ok(input)

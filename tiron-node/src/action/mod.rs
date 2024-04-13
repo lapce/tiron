@@ -8,12 +8,16 @@ mod package;
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::Display,
+    ops::Range,
 };
 
 use crossbeam_channel::Sender;
 use itertools::Itertools;
-use rcl::{error::Error, runtime::Value, source::Span};
-use tiron_common::action::{ActionId, ActionMessage};
+use rcl::{runtime::Value, source::Span};
+use tiron_common::{
+    action::{ActionId, ActionMessage},
+    error::{Error, Origin},
+};
 
 pub trait Action {
     /// name of the action
@@ -21,7 +25,7 @@ pub trait Action {
 
     fn doc(&self) -> ActionDoc;
 
-    fn input(&self, cwd: &std::path::Path, params: ActionParams) -> Result<Vec<u8>, Error>;
+    fn input(&self, params: ActionParams) -> Result<Vec<u8>, Error>;
 
     fn execute(
         &self,
@@ -108,39 +112,6 @@ impl ActionParamType {
 
         None
     }
-
-    fn parse(&self, value: &Value) -> Option<ActionParamValue> {
-        match self {
-            ActionParamType::String => {
-                if let Value::String(s, span) = value {
-                    return Some(ActionParamValue::String(s.to_string(), *span));
-                }
-            }
-            ActionParamType::Bool => {
-                if let Value::Bool(v) = value {
-                    return Some(ActionParamValue::Bool(*v));
-                }
-            }
-            ActionParamType::List(base) => {
-                if let Value::List(v) = value {
-                    let mut items = Vec::new();
-                    for v in v.iter() {
-                        let base = base.parse(v)?;
-                        items.push(base);
-                    }
-                    return Some(ActionParamValue::List(items));
-                }
-            }
-            ActionParamType::Enum(options) => {
-                for option in options {
-                    if option.match_value(value) {
-                        return Some(ActionParamValue::Base(option.clone()));
-                    }
-                }
-            }
-        }
-        None
-    }
 }
 
 impl Display for ActionParamType {
@@ -194,36 +165,6 @@ impl ActionParamDoc {
 
         Ok(None)
     }
-
-    pub fn parse_param(
-        &self,
-        dict: &BTreeMap<Value, Value>,
-        dict_span: Option<Span>,
-    ) -> Result<Option<ActionParamValue>, Error> {
-        let param = dict.get(&Value::String(self.name.clone().into(), None));
-        if let Some(param) = param {
-            for type_ in &self.type_ {
-                if let Some(value) = type_.parse(param) {
-                    return Ok(Some(value));
-                }
-            }
-            return Error::new(format!(
-                "{} type should be {}",
-                self.name,
-                self.type_.iter().map(|t| t.to_string()).join(" or ")
-            ))
-            .with_origin(*param.span())
-            .err();
-        }
-
-        if self.required {
-            return Error::new(format!("can't find {}", self.name,))
-                .with_origin(dict_span)
-                .err();
-        }
-
-        Ok(None)
-    }
 }
 
 pub struct ActionDoc {
@@ -232,50 +173,37 @@ pub struct ActionDoc {
 }
 
 impl ActionDoc {
-    pub fn parse_attrs(&self, attrs: &HashMap<String, hcl::Value>) -> Result<ActionParams, Error> {
+    pub fn parse_attrs<'a>(
+        &self,
+        origin: &'a Origin,
+        attrs: &HashMap<String, hcl::Value>,
+    ) -> Result<ActionParams<'a>, Error> {
         let mut values = Vec::new();
         for param in &self.params {
             let value = param.parse_attrs(attrs)?;
             values.push(value);
         }
 
-        Ok(ActionParams { span: None, values })
-    }
-
-    pub fn parse_params(&self, params: Option<&Value>) -> Result<ActionParams, Error> {
-        let Some(value) = params else {
-            return Error::new("can't find params").err();
-        };
-        let Value::Dict(dict, dict_span) = value else {
-            return Error::new("params should be a Dict")
-                .with_origin(*value.span())
-                .err();
-        };
-
-        let mut values = Vec::new();
-        for param in &self.params {
-            let value = param.parse_param(dict, *dict_span)?;
-            values.push(value);
-        }
-
         Ok(ActionParams {
-            span: *dict_span,
+            origin,
+            span: None,
             values,
         })
     }
 }
 
-pub struct ActionParams {
-    pub span: Option<Span>,
+pub struct ActionParams<'a> {
+    pub origin: &'a Origin,
+    pub span: Option<Range<usize>>,
     pub values: Vec<Option<ActionParamValue>>,
 }
 
-impl ActionParams {
+impl<'a> ActionParams<'a> {
     pub fn expect_string(&self, i: usize) -> &str {
         self.values[i].as_ref().unwrap().expect_string()
     }
 
-    pub fn expect_string_with_span(&self, i: usize) -> (&str, &Option<Span>) {
+    pub fn expect_string_with_span(&self, i: usize) -> (&str, &Option<Range<usize>>) {
         self.values[i].as_ref().unwrap().expect_string_with_span()
     }
 
@@ -293,7 +221,7 @@ impl ActionParams {
 }
 
 pub enum ActionParamValue {
-    String(String, Option<Span>),
+    String(String, Option<Range<usize>>),
     Bool(bool),
     List(Vec<ActionParamBaseValue>),
     Base(ActionParamBaseValue),
@@ -308,7 +236,7 @@ impl ActionParamValue {
         }
     }
 
-    pub fn string_with_span(&self) -> Option<(&str, &Option<Span>)> {
+    pub fn string_with_span(&self) -> Option<(&str, &Option<Range<usize>>)> {
         if let ActionParamValue::String(s, span) = self {
             Some((s, span))
         } else {
@@ -336,7 +264,7 @@ impl ActionParamValue {
         self.string().unwrap()
     }
 
-    pub fn expect_string_with_span(&self) -> (&str, &Option<Span>) {
+    pub fn expect_string_with_span(&self) -> (&str, &Option<Range<usize>>) {
         self.string_with_span().unwrap()
     }
 
