@@ -7,11 +7,13 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
 use documented::{Documented, DocumentedFields};
-use rcl::{error::Error, runtime::Value};
+use rcl::error::Error;
 use serde::{Deserialize, Serialize};
 use tiron_common::action::{ActionId, ActionMessage, ActionOutputLevel};
 
-use super::{Action, ActionDoc, ActionParamBaseType, ActionParamDoc, ActionParamType};
+use super::{
+    Action, ActionDoc, ActionParamBaseType, ActionParamDoc, ActionParamType, ActionParams,
+};
 
 pub fn run_command(
     id: ActionId,
@@ -92,67 +94,6 @@ impl Action for CommandAction {
         "command".to_string()
     }
 
-    fn input(&self, _cwd: &Path, params: Option<&Value>) -> Result<Vec<u8>, Error> {
-        let Some(params) = params else {
-            return Error::new("can't find params").err();
-        };
-        let Value::Dict(dict, dict_span) = params else {
-            return Error::new("params should be a Dict")
-                .with_origin(*params.span())
-                .err();
-        };
-        let Some(cmd) = dict.get(&Value::String("cmd".into(), None)) else {
-            return Error::new("can't find cmd").with_origin(*dict_span).err();
-        };
-        let Value::String(cmd, _) = cmd else {
-            return Error::new("cmd should be a string")
-                .with_origin(*cmd.span())
-                .err();
-        };
-        let args = if let Some(args) = dict.get(&Value::String("args".into(), None)) {
-            let Value::List(args_value) = args else {
-                return Error::new("args should be a list")
-                    .with_origin(*args.span())
-                    .err();
-            };
-            let mut args = Vec::new();
-            for arg in args_value.iter() {
-                let Value::String(arg, _) = arg else {
-                    return Error::new("args should be a list of strings")
-                        .with_origin(*arg.span())
-                        .err();
-                };
-                args.push(arg.to_string());
-            }
-            Some(args)
-        } else {
-            None
-        };
-        let input = CommandAction {
-            cmd: cmd.to_string(),
-            args: args.unwrap_or_default(),
-        };
-        let input = bincode::serialize(&input).map_err(|e| {
-            Error::new(format!("serialize action input error: {e}")).with_origin(*params.span())
-        })?;
-        Ok(input)
-    }
-
-    fn execute(
-        &self,
-        id: ActionId,
-        input: &[u8],
-        tx: &Sender<ActionMessage>,
-    ) -> anyhow::Result<String> {
-        let input: CommandAction = bincode::deserialize(input)?;
-        let status = run_command(id, tx, &input.cmd, &input.args)?;
-        if status.success() {
-            Ok("command".to_string())
-        } else {
-            Err(anyhow!("command failed"))
-        }
-    }
-
     fn doc(&self) -> ActionDoc {
         ActionDoc {
             description: Self::DOCS.to_string(),
@@ -170,6 +111,44 @@ impl Action for CommandAction {
                     type_: vec![ActionParamType::List(ActionParamBaseType::String)],
                 },
             ],
+        }
+    }
+
+    fn input(&self, _cwd: &Path, params: ActionParams) -> Result<Vec<u8>, Error> {
+        let cmd = params.expect_string(0);
+
+        let args = if let Some(list) = params.list(1) {
+            let args = list
+                .iter()
+                .map(|v| v.expect_string().to_string())
+                .collect::<Vec<_>>();
+            Some(args)
+        } else {
+            None
+        };
+
+        let input = CommandAction {
+            cmd: cmd.to_string(),
+            args: args.unwrap_or_default(),
+        };
+        let input = bincode::serialize(&input).map_err(|e| {
+            Error::new(format!("serialize action input error: {e}")).with_origin(params.span)
+        })?;
+        Ok(input)
+    }
+
+    fn execute(
+        &self,
+        id: ActionId,
+        input: &[u8],
+        tx: &Sender<ActionMessage>,
+    ) -> anyhow::Result<String> {
+        let input: CommandAction = bincode::deserialize(input)?;
+        let status = run_command(id, tx, &input.cmd, &input.args)?;
+        if status.success() {
+            Ok("command".to_string())
+        } else {
+            Err(anyhow!("command failed"))
         }
     }
 }

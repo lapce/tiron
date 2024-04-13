@@ -1,10 +1,12 @@
 use std::path::PathBuf;
 
 use documented::{Documented, DocumentedFields};
-use rcl::{error::Error, runtime::Value};
+use rcl::error::Error;
 use serde::{Deserialize, Serialize};
 
-use super::{Action, ActionDoc, ActionParamBaseValue, ActionParamDoc, ActionParamType};
+use super::{
+    Action, ActionDoc, ActionParamBaseValue, ActionParamDoc, ActionParamType, ActionParams,
+};
 
 #[derive(Default, Clone, Serialize, Deserialize)]
 pub enum FileState {
@@ -36,49 +38,52 @@ impl Action for FileAction {
         "file".to_string()
     }
 
-    fn input(&self, _cwd: &std::path::Path, params: Option<&Value>) -> Result<Vec<u8>, Error> {
-        let Some(params) = params else {
-            return Error::new("can't find params").err();
-        };
-        let Value::Dict(dict, dict_span) = params else {
-            return Error::new("params should be a Dict")
-                .with_origin(*params.span())
-                .err();
-        };
-        let Some(path) = dict.get(&Value::String("path".into(), None)) else {
-            return Error::new("can't find path").with_origin(*dict_span).err();
-        };
-        let Value::String(path, _) = path else {
-            return Error::new("path should be a string")
-                .with_origin(*path.span())
-                .err();
-        };
+    fn doc(&self) -> ActionDoc {
+        ActionDoc {
+            description: Self::DOCS.to_string(),
+            params: vec![
+                ActionParamDoc {
+                    name: "path".to_string(),
+                    required: true,
+                    description: Self::get_field_docs("path").unwrap_or_default().to_string(),
+                    type_: vec![ActionParamType::String],
+                },
+                ActionParamDoc {
+                    name: "state".to_string(),
+                    required: false,
+                    description: Self::get_field_docs("state")
+                        .unwrap_or_default()
+                        .to_string(),
+                    type_: vec![ActionParamType::Enum(vec![
+                        ActionParamBaseValue::String("file".to_string()),
+                        ActionParamBaseValue::String("absent".to_string()),
+                        ActionParamBaseValue::String("directory".to_string()),
+                    ])],
+                },
+            ],
+        }
+    }
+
+    fn input(&self, _cwd: &std::path::Path, params: ActionParams) -> Result<Vec<u8>, Error> {
+        let path = params.expect_string(0);
         let mut input = FileAction {
             path: path.to_string(),
             ..Default::default()
         };
 
-        if let Some(state) = dict.get(&Value::String("state".into(), None)) {
-            let Value::String(state, state_span) = state else {
-                return Error::new("state should be a string")
-                    .with_origin(*state.span())
-                    .err();
-            };
-            let state = match state.as_ref() {
+        if let Some(state) = params.base(1) {
+            let state = state.expect_string();
+            let state = match state {
                 "file" => FileState::File,
                 "absent" => FileState::Absent,
                 "directory" => FileState::Directory,
-                _ => {
-                    return Error::new("state is invalid")
-                        .with_origin(*state_span)
-                        .err()
-                }
+                _ => unreachable!(),
             };
             input.state = state;
-        };
+        }
 
         let input = bincode::serialize(&input).map_err(|e| {
-            Error::new(format!("serialize action input error: {e}")).with_origin(*params.span())
+            Error::new(format!("serialize action input error: {e}")).with_origin(params.span)
         })?;
         Ok(input)
     }
@@ -107,31 +112,5 @@ impl Action for FileAction {
             }
         }
         Ok("".to_string())
-    }
-
-    fn doc(&self) -> ActionDoc {
-        ActionDoc {
-            description: Self::DOCS.to_string(),
-            params: vec![
-                ActionParamDoc {
-                    name: "path".to_string(),
-                    required: true,
-                    description: Self::get_field_docs("path").unwrap_or_default().to_string(),
-                    type_: vec![ActionParamType::String],
-                },
-                ActionParamDoc {
-                    name: "state".to_string(),
-                    required: false,
-                    description: Self::get_field_docs("state")
-                        .unwrap_or_default()
-                        .to_string(),
-                    type_: vec![ActionParamType::Enum(vec![
-                        ActionParamBaseValue::String("file".to_string()),
-                        ActionParamBaseValue::String("absent".to_string()),
-                        ActionParamBaseValue::String("directory".to_string()),
-                    ])],
-                },
-            ],
-        }
     }
 }

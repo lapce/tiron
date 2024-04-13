@@ -22,12 +22,18 @@ pub struct Node {
     pub remote_user: Option<String>,
     pub become_: bool,
     pub vars: HashMap<String, Value>,
+    pub new_vars: HashMap<String, hcl::Value>,
     pub actions: Vec<ActionData>,
     pub tx: Sender<AppEvent>,
 }
 
 impl Node {
-    pub fn new(host: String, vars: HashMap<String, Value>, tx: &Sender<AppEvent>) -> Self {
+    pub fn new(
+        host: String,
+        vars: HashMap<String, Value>,
+        new_vars: HashMap<String, hcl::Value>,
+        tx: &Sender<AppEvent>,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             host,
@@ -43,6 +49,7 @@ impl Node {
                 .map(|v| if let Value::Bool(b) = v { *b } else { false })
                 .unwrap_or(false),
             vars,
+            new_vars,
             actions: Vec::new(),
             tx: tx.clone(),
         }

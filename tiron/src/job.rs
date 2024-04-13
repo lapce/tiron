@@ -4,12 +4,16 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
+use hcl_edit::structure::Block;
 use rcl::{error::Error, loader::Loader, markup::MarkupMode, runtime::Value, source::Span};
 use tiron_common::action::ActionData;
 
 use crate::{action::parse_actions, config::Config, run::value_to_type};
 
-pub struct Job {}
+#[derive(Clone)]
+pub struct Job {
+    pub block: Block,
+}
 
 impl Job {
     pub fn load(

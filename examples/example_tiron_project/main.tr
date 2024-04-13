@@ -1,0 +1,69 @@
+// use "jobs/job1/main.tr" {
+//     job "job1" {
+//         as = "another_job_name"
+//     }
+//     job "job2" {}
+// }
+
+use "tiron.tr" {
+    group "group2" {}
+}
+
+group "production" {
+    host "localhost" {
+        apache = "apache2"
+    }
+}
+
+run "production" {
+    name        = "initial run"
+    remote_user = "dz"
+    become      = true
+        
+    action "copy" {
+        params {
+            src  = "/tmp/test.rcl" 
+            dest = "/tmp/test.conf"
+        }
+    }
+        
+    action "package" {
+        params {
+            name  = [apache, "mariadb-connector-c", "${apache}"]
+            state = "present"
+        }
+    }
+        
+    action "job" {
+        name = "run job1"
+        params {
+            
+        } 
+    }
+}
+
+run "group2" {
+    remote_user = "dz"
+        
+    action "job" {
+        params {
+            name = "job1"
+        }
+    }
+    action "copy" {
+        params {
+            src  = "/tmp/test.rcl" 
+            dest = "/tmp/test.conf"
+        }
+    }
+    action "job" {
+        params {
+            name = "job1"
+        }
+    }
+    action "job" {
+        params {
+            name = "job1"
+        }
+    }
+}

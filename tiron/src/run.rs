@@ -1,6 +1,7 @@
 use std::{collections::HashMap, path::Path, sync::Arc};
 
 use anyhow::Result;
+use hcl_edit::structure::Block;
 use rcl::{
     error::Error,
     loader::Loader,
@@ -13,7 +14,11 @@ use rcl::{
 use tiron_tui::run::{ActionSection, HostSection, RunPanel};
 use uuid::Uuid;
 
-use crate::{action::parse_actions, config::Config, node::Node};
+use crate::{
+    action::{parse_actions, parse_actions_new},
+    config::Config,
+    node::Node,
+};
 
 pub struct Run {
     pub id: Uuid,
@@ -22,6 +27,27 @@ pub struct Run {
 }
 
 impl Run {
+    pub fn from_block(
+        cwd: &Path,
+        name: Option<String>,
+        block: &Block,
+        hosts: Vec<Node>,
+    ) -> Result<Self, Error> {
+        let mut run = Run {
+            id: Uuid::new_v4(),
+            name,
+            hosts,
+        };
+
+        for host in run.hosts.iter_mut() {
+            let mut job_depth = 0;
+            let actions = parse_actions_new(cwd, block, &host.new_vars, &mut job_depth)?;
+            host.actions = actions;
+        }
+
+        Ok(run)
+    }
+
     pub fn from_runbook(
         loader: &mut Loader,
         cwd: &Path,
@@ -41,6 +67,7 @@ impl Run {
                 id: Uuid::new_v4(),
                 host: "localhost".to_string(),
                 vars: HashMap::new(),
+                new_vars: HashMap::new(),
                 remote_user: None,
                 become_: false,
                 actions: Vec::new(),

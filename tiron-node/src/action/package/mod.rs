@@ -3,7 +3,7 @@ mod provider;
 use anyhow::anyhow;
 use crossbeam_channel::Sender;
 use documented::{Documented, DocumentedFields};
-use rcl::{error::Error, runtime::Value};
+use rcl::error::Error;
 use serde::{Deserialize, Serialize};
 use tiron_common::action::{ActionId, ActionMessage};
 
@@ -11,6 +11,7 @@ use self::provider::PackageProvider;
 
 use super::{
     Action, ActionDoc, ActionParamBaseType, ActionParamBaseValue, ActionParamDoc, ActionParamType,
+    ActionParams,
 };
 
 #[derive(Default, Clone, Serialize, Deserialize)]
@@ -36,86 +37,6 @@ pub struct PackageAction {
 impl Action for PackageAction {
     fn name(&self) -> String {
         "package".to_string()
-    }
-
-    fn input(
-        &self,
-        _cwd: &std::path::Path,
-        params: Option<&rcl::runtime::Value>,
-    ) -> Result<Vec<u8>, Error> {
-        let Some(params) = params else {
-            return Error::new("can't find params").err();
-        };
-        let Value::Dict(dict, dict_span) = params else {
-            return Error::new("params should be a Dict")
-                .with_origin(*params.span())
-                .err();
-        };
-        let Some(name) = dict.get(&Value::String("name".into(), None)) else {
-            return Error::new("can't find name").with_origin(*dict_span).err();
-        };
-        let names = match name {
-            Value::String(name, _) => vec![name.to_string()],
-            Value::List(name) => {
-                let mut names = Vec::new();
-                for name in name.iter() {
-                    let Value::String(name, _) = name else {
-                        return Error::new("name should be a string")
-                            .with_origin(*name.span())
-                            .err();
-                    };
-                    names.push(name.to_string());
-                }
-                names
-            }
-            _ => {
-                return Error::new("name should be either a string or a list")
-                    .with_origin(*name.span())
-                    .err();
-            }
-        };
-
-        let Some(state) = dict.get(&Value::String("state".into(), None)) else {
-            return Error::new("can't find state").with_origin(*dict_span).err();
-        };
-        let Value::String(state, state_span) = state else {
-            return Error::new("state should be a string")
-                .with_origin(*state.span())
-                .err();
-        };
-        let state = match state.as_ref() {
-            "present" => PackageState::Present,
-            "absent" => PackageState::Absent,
-            "latest" => PackageState::Latest,
-            _ => {
-                return Error::new("state is invalid")
-                    .with_origin(*state_span)
-                    .err()
-            }
-        };
-
-        let input = PackageAction { name: names, state };
-        let input = bincode::serialize(&input).map_err(|e| {
-            Error::new(format!("serialize action input error: {e}")).with_origin(*params.span())
-        })?;
-        Ok(input)
-    }
-
-    fn execute(
-        &self,
-        id: ActionId,
-        input: &[u8],
-        tx: &Sender<ActionMessage>,
-    ) -> anyhow::Result<String> {
-        let input: PackageAction = bincode::deserialize(input)?;
-        let provider = PackageProvider::detect()?;
-
-        let status = provider.run(id, tx, input.name, input.state)?;
-        if status.success() {
-            Ok("package".to_string())
-        } else {
-            Err(anyhow!("package failed"))
-        }
     }
 
     fn doc(&self) -> ActionDoc {
@@ -146,6 +67,50 @@ impl Action for PackageAction {
                     ])],
                 },
             ],
+        }
+    }
+
+    fn input(&self, _cwd: &std::path::Path, params: ActionParams) -> Result<Vec<u8>, Error> {
+        let name = params.values[0].as_ref().unwrap();
+        let names = if let Some(s) = name.string() {
+            vec![s.to_string()]
+        } else {
+            let list = name.expect_list();
+            list.iter().map(|v| v.expect_string().to_string()).collect()
+        };
+
+        let state = params.expect_base(1);
+        let state = state.expect_string();
+        let state = match state {
+            "present" => PackageState::Present,
+            "absent" => PackageState::Absent,
+            "latest" => PackageState::Latest,
+            _ => {
+                unreachable!();
+            }
+        };
+
+        let input = PackageAction { name: names, state };
+        let input = bincode::serialize(&input).map_err(|e| {
+            Error::new(format!("serialize action input error: {e}")).with_origin(params.span)
+        })?;
+        Ok(input)
+    }
+
+    fn execute(
+        &self,
+        id: ActionId,
+        input: &[u8],
+        tx: &Sender<ActionMessage>,
+    ) -> anyhow::Result<String> {
+        let input: PackageAction = bincode::deserialize(input)?;
+        let provider = PackageProvider::detect()?;
+
+        let status = provider.run(id, tx, input.name, input.state)?;
+        if status.success() {
+            Ok("package".to_string())
+        } else {
+            Err(anyhow!("package failed"))
         }
     }
 }

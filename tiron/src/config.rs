@@ -1,28 +1,32 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    path::PathBuf,
-};
+use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
-use rcl::{error::Error, loader::Loader, markup::MarkupMode, runtime::Value};
+use hcl::eval::{Context, Evaluate};
+use hcl_edit::structure::{Block, BlockLabel, Structure};
+use rcl::{error::Error, loader::Loader, runtime::Value};
 use tiron_tui::event::AppEvent;
 
-use crate::{core::print_warn, node::Node};
+use crate::node::Node;
 
+#[derive(Clone)]
 pub enum HostOrGroup {
     Host(String),
     Group(String),
 }
 
+#[derive(Clone)]
 pub struct HostOrGroupConfig {
-    host: HostOrGroup,
-    vars: HashMap<String, Value>,
+    pub host: HostOrGroup,
+    pub vars: HashMap<String, Value>,
+    pub new_vars: HashMap<String, hcl::Value>,
 }
 
+#[derive(Clone)]
 pub struct GroupConfig {
-    hosts: Vec<HostOrGroupConfig>,
-    vars: HashMap<String, Value>,
+    pub hosts: Vec<HostOrGroupConfig>,
+    pub vars: HashMap<String, Value>,
+    pub new_vars: HashMap<String, hcl::Value>,
 }
 
 pub struct Config {
@@ -36,108 +40,101 @@ impl Config {
         let mut cwd = std::env::current_dir()
             .map_err(|e| Error::new(format!("can't get current directory {e}")))?;
 
-        let mut path = cwd.join("tiron.rcl");
+        let mut path = cwd.join("tiron.tr");
         while !path.exists() {
             cwd = cwd
                 .parent()
                 .map(|p| p.to_path_buf())
-                .ok_or_else(|| Error::new("can't find tiron.rcl"))?;
-            path = cwd.join("tiron.rcl");
+                .ok_or_else(|| Error::new("can't find tiron.tr"))?;
+            path = cwd.join("tiron.tr");
         }
 
         let data = std::fs::read_to_string(&path)
             .map_err(|e| Error::new(format!("can't reading config. Error: {e}")))?;
-
-        let id = loader.load_string(data, Some(path.to_string_lossy().to_string()), 0);
-        let value = loader.evaluate(
-            &mut rcl::typecheck::prelude(),
-            &mut rcl::runtime::prelude(),
-            id,
-            &mut rcl::tracer::StderrTracer::new(Some(MarkupMode::Ansi)),
-        )?;
-
-        let Value::Dict(mut dict, dict_span) = value else {
-            return Error::new("root should be dict")
-                .with_origin(*value.span())
-                .err();
-        };
 
         let mut config = Config {
             tx: tx.clone(),
             groups: HashMap::new(),
             project_folder: cwd,
         };
-
-        if let Some(groups) = dict.remove(&Value::String("groups".into(), None)) {
-            let Value::Dict(groups, groups_span) = groups else {
-                return Error::new("hosts should be dict")
-                    .with_origin(dict_span)
-                    .err();
-            };
-            for (key, group) in groups.iter() {
-                let Value::String(group_name, _) = key else {
-                    return Error::new("group key should be a string")
-                        .with_origin(groups_span)
-                        .err();
-                };
-                let group = Self::parse_group(&groups, group_name, group)?;
-                config.groups.insert(group_name.to_string(), group);
-            }
-        }
-
-        for (key, _) in dict {
-            let warn = Error::new("key here is unsed")
-                .warning()
-                .with_origin(*key.span());
-            print_warn(warn, loader);
+        let group_configs = Self::parse_groups(&data)?;
+        for (name, group) in group_configs {
+            config.groups.insert(name, group);
         }
 
         Ok(config)
     }
 
+    pub fn parse_groups(input: &str) -> Result<HashMap<String, GroupConfig>, Error> {
+        let body = hcl_edit::parser::parse_body(input)
+            .map_err(|e| Error::new(e.to_string().replace('\n', " ")))?;
+
+        let mut groups = HashMap::new();
+        for structure in body.iter() {
+            match structure {
+                Structure::Attribute(_) => {}
+                Structure::Block(block) => {
+                    if block.ident.as_str() == "group" {
+                        if block.labels.is_empty() {
+                            return Error::new("group name doesn't exit").err();
+                        }
+                        if block.labels.len() > 1 {
+                            return Error::new("group should only have one name").err();
+                        }
+                        match &block.labels[0] {
+                            BlockLabel::Ident(_) => {
+                                return Error::new("group name should be a string").err();
+                            }
+                            BlockLabel::String(name) => {
+                                let name = name.as_str();
+                                if groups.contains_key(name) {
+                                    return Error::new(
+                                        "You can't define the same group name multipe numbers",
+                                    )
+                                    .err();
+                                }
+                                groups.insert(name, block);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut group_configs = HashMap::new();
+        for (name, group) in &groups {
+            let group = Self::parse_group(&groups, name, group)?;
+            group_configs.insert(name.to_string(), group);
+        }
+
+        Ok(group_configs)
+    }
+
     fn parse_group(
-        groups: &BTreeMap<Value, Value>,
+        groups: &HashMap<&str, &Block>,
         group_name: &str,
-        value: &Value,
+        block: &Block,
     ) -> Result<GroupConfig, Error> {
-        let Value::Dict(group, group_span) = value else {
-            return Error::new("group value should be a dict")
-                .with_origin(*value.span())
-                .err();
-        };
         let mut group_config = GroupConfig {
             hosts: Vec::new(),
             vars: HashMap::new(),
-        };
-        let Some(group_hosts) = group.get(&Value::String("hosts".into(), None)) else {
-            return Error::new("group should have hosts")
-                .with_origin(*group_span)
-                .err();
-        };
-        let Value::List(group_hosts) = group_hosts else {
-            return Error::new("group value should be a list")
-                .with_origin(*group_hosts.span())
-                .err();
+            new_vars: HashMap::new(),
         };
 
-        for host in group_hosts.iter() {
-            let host_config = Self::parse_group_entry(groups, group_name, host)?;
-            group_config.hosts.push(host_config);
-        }
-
-        if let Some(vars) = group.get(&Value::String("vars".into(), None)) {
-            let Value::Dict(vars, _) = vars else {
-                return Error::new("group entry vars should be a dict")
-                    .with_origin(*vars.span())
-                    .err();
-            };
-            for (key, var) in vars.iter() {
-                let Value::String(key, _) = key else {
-                    return Error::new("group entry vars key should be a string")
-                        .with_origin(*key.span())
-                        .err();
-                };
-                group_config.vars.insert(key.to_string(), var.clone());
+        let ctx = Context::new();
+        for structure in block.body.iter() {
+            match structure {
+                Structure::Attribute(a) => {
+                    let expr: hcl::Expression = a.value.to_owned().into();
+                    let v: hcl::Value = expr
+                        .evaluate(&ctx)
+                        .map_err(|e| Error::new(e.to_string().replace('\n', " ")))?;
+                    group_config.new_vars.insert(a.key.to_string(), v);
+                }
+                Structure::Block(block) => {
+                    let host_or_group = Self::parse_group_entry(groups, group_name, block)?;
+                    group_config.hosts.push(host_or_group);
+                }
             }
         }
 
@@ -145,72 +142,65 @@ impl Config {
     }
 
     fn parse_group_entry(
-        groups: &BTreeMap<Value, Value>,
+        groups: &HashMap<&str, &Block>,
         group_name: &str,
-        value: &Value,
+        block: &Block,
     ) -> Result<HostOrGroupConfig, Error> {
-        let Value::Dict(host, host_span) = value else {
-            return Error::new("group entry should be a dict")
-                .with_origin(*value.span())
-                .err();
+        let ident = block.ident.as_str();
+        let host_or_group = match ident {
+            "host" => {
+                if block.labels.is_empty() {
+                    return Error::new("host name doesn't exit").err();
+                }
+                if block.labels.len() > 1 {
+                    return Error::new("host should only have one name").err();
+                }
+
+                let BlockLabel::String(name) = &block.labels[0] else {
+                    return Error::new("host name should be a string").err();
+                };
+
+                HostOrGroup::Host(name.to_string())
+            }
+            "group" => {
+                if block.labels.is_empty() {
+                    return Error::new("group name doesn't exit").err();
+                }
+                if block.labels.len() > 1 {
+                    return Error::new("group should only have one name").err();
+                }
+
+                let BlockLabel::String(name) = &block.labels[0] else {
+                    return Error::new("group name should be a string").err();
+                };
+
+                if name.as_str() == group_name {
+                    return Error::new("group can't point to itself").err();
+                }
+
+                if !groups.contains_key(name.as_str()) {
+                    return Error::new(format!("group {} doesn't exist", name.as_str())).err();
+                }
+
+                HostOrGroup::Group(name.to_string())
+            }
+            _ => return Error::new("you can only have host or group").err(),
         };
 
-        if host.contains_key(&Value::String("host".into(), None))
-            && host.contains_key(&Value::String("group".into(), None))
-        {
-            return Error::new("group entry can't have host and group at the same time")
-                .with_origin(*host_span)
-                .err();
-        }
-
-        let host_or_group = if let Some(v) = host.get(&Value::String("host".into(), None)) {
-            let Value::String(v, _) = v else {
-                return Error::new("group entry host value should be a string")
-                    .with_origin(*v.span())
-                    .err();
-            };
-            HostOrGroup::Host(v.to_string())
-        } else if let Some(v) = host.get(&Value::String("group".into(), None)) {
-            let Value::String(v, v_span) = v else {
-                return Error::new("group entry group value should be a string")
-                    .with_origin(*v.span())
-                    .err();
-            };
-            if v.as_ref() == group_name {
-                return Error::new("group entry group can't point to itself")
-                    .with_origin(*v_span)
-                    .err();
-            }
-            if !groups.contains_key(&Value::String(v.clone(), None)) {
-                return Error::new("group entry group doesn't exist")
-                    .with_origin(*v_span)
-                    .err();
-            }
-
-            HostOrGroup::Group(v.to_string())
-        } else {
-            return Error::new("group entry should have either host or group")
-                .with_origin(*host_span)
-                .err();
-        };
         let mut host_config = HostOrGroupConfig {
             host: host_or_group,
             vars: HashMap::new(),
+            new_vars: HashMap::new(),
         };
 
-        if let Some(vars) = host.get(&Value::String("vars".into(), None)) {
-            let Value::Dict(vars, _) = vars else {
-                return Error::new("group entry vars should be a dict")
-                    .with_origin(*vars.span())
-                    .err();
-            };
-            for (key, var) in vars.iter() {
-                let Value::String(key, _) = key else {
-                    return Error::new("group entry vars key should be a string")
-                        .with_origin(*key.span())
-                        .err();
-                };
-                host_config.vars.insert(key.to_string(), var.clone());
+        let ctx = Context::new();
+        for structure in block.body.iter() {
+            if let Structure::Attribute(a) = structure {
+                let expr: hcl::Expression = a.value.to_owned().into();
+                let v: hcl::Value = expr
+                    .evaluate(&ctx)
+                    .map_err(|e| Error::new(e.to_string().replace('\n', " ")))?;
+                host_config.new_vars.insert(a.key.to_string(), v);
             }
         }
 
@@ -228,6 +218,7 @@ impl Config {
                             return Ok(vec![Node::new(
                                 host_name.to_string(),
                                 host.vars.clone(),
+                                host.new_vars.clone(),
                                 &self.tx,
                             )]);
                         }
@@ -250,6 +241,7 @@ impl Config {
                     vec![Node::new(
                         name.to_string(),
                         host_or_group.vars.clone(),
+                        host_or_group.new_vars.clone(),
                         &self.tx,
                     )]
                 }

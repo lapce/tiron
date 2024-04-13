@@ -1,11 +1,80 @@
 use std::{collections::HashMap, path::Path};
 
 use anyhow::Result;
+use hcl::eval::{Context, Evaluate};
+use hcl_edit::structure::{Block, BlockLabel, Structure};
 use rcl::{error::Error, loader::Loader, runtime::Value};
 use tiron_common::action::{ActionData, ActionId};
 use tiron_node::action::data::all_actions;
 
 use crate::{config::Config, job::Job};
+
+pub fn parse_actions_new(
+    cwd: &Path,
+    block: &Block,
+    vars: &HashMap<String, hcl::Value>,
+    job_depth: &mut i32,
+) -> Result<Vec<ActionData>, Error> {
+    let all_actions = all_actions();
+
+    let mut ctx = Context::new();
+    for (name, var) in vars {
+        ctx.declare_var(name.to_string(), var.to_owned());
+    }
+
+    let mut actions = Vec::new();
+    for s in block.body.iter() {
+        if let Structure::Block(block) = s {
+            if block.ident.as_str() == "action" {
+                if block.labels.is_empty() {
+                    return Error::new("No action name").err();
+                }
+                if block.labels.len() > 1 {
+                    return Error::new("You can only have one action name").err();
+                }
+                let BlockLabel::String(action_name) = &block.labels[0] else {
+                    return Error::new("action name should be a string").err();
+                };
+
+                if action_name.as_str() == "job" {
+                    *job_depth += 1;
+                    if *job_depth > 500 {
+                        return Error::new("job name might have a endless loop here").err();
+                    }
+                    *job_depth -= 1;
+                } else {
+                    let Some(action) = all_actions.get(action_name.as_str()) else {
+                        return Error::new(format!(
+                            "action {} can't be found",
+                            action_name.as_str()
+                        ))
+                        .err();
+                    };
+
+                    let mut attrs = HashMap::new();
+                    for s in block.body.iter() {
+                        if let Some(a) = s.as_attribute() {
+                            let expr: hcl::Expression = a.value.to_owned().into();
+                            let v: hcl::Value = expr
+                                .evaluate(&ctx)
+                                .map_err(|e| Error::new(e.to_string().replace('\n', " ")))?;
+                            attrs.insert(a.key.to_string(), v);
+                        }
+                    }
+                    let params = action.doc().parse_attrs(&attrs)?;
+                    let input = action.input(cwd, params)?;
+                    actions.push(ActionData {
+                        id: ActionId::new(),
+                        name: action_name.to_string(),
+                        action: action_name.to_string(),
+                        input,
+                    });
+                }
+            }
+        }
+    }
+    Ok(actions)
+}
 
 pub fn parse_actions(
     loader: &mut Loader,
@@ -96,7 +165,7 @@ pub fn parse_actions(
                     .err();
             };
             let params = dict.get(&Value::String("params".into(), None));
-            let _ = action.doc().parse_params(params)?;
+            let params = action.doc().parse_params(params)?;
             let input = action.input(cwd, params).map_err(|e| {
                 let mut e = e;
                 if e.origin.is_none() {
