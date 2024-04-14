@@ -31,7 +31,7 @@ pub struct GroupConfig {
 
 pub struct Config {
     pub tx: Sender<AppEvent>,
-    groups: HashMap<String, GroupConfig>,
+    pub groups: HashMap<String, GroupConfig>,
     pub project_folder: PathBuf,
 }
 

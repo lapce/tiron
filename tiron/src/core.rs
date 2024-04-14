@@ -38,9 +38,8 @@ pub fn cmd() {
             } else {
                 runbooks
             };
-            let mut loader = rcl::loader::Loader::new();
-            if let Err(e) = run(&mut loader, runbooks, false) {
-                print_fatal_error(e, &loader);
+            if let Err(e) = run(runbooks, false) {
+                let _ = e.report_stderr();
             }
         }
         CliCmd::Check { runbooks } => {
@@ -49,8 +48,7 @@ pub fn cmd() {
             } else {
                 runbooks
             };
-            let mut loader = rcl::loader::Loader::new();
-            match run(&mut loader, runbooks, true) {
+            match run(runbooks, true) {
                 Ok(runbooks) => {
                     println!("successfully checked");
                     for runbook in runbooks {
@@ -58,7 +56,7 @@ pub fn cmd() {
                     }
                 }
                 Err(e) => {
-                    print_fatal_error(e, &loader);
+                    let _ = e.report_stderr();
                 }
             }
         }
@@ -66,38 +64,38 @@ pub fn cmd() {
     }
 }
 
-fn print_fatal_error(err: Error, loader: &Loader) -> ! {
-    let inputs = loader.as_inputs();
-    let err_doc = err.report(&inputs);
-    print_doc_stderr(err_doc);
-    // Regardless of whether printing to stderr failed or not, the error was
-    // fatal, so we exit with code 1.
-    std::process::exit(1);
-}
+// fn print_fatal_error(err: Error, loader: &Loader) -> ! {
+//     let inputs = loader.as_inputs();
+//     let err_doc = err.report(&inputs);
+//     print_doc_stderr(err_doc);
+//     // Regardless of whether printing to stderr failed or not, the error was
+//     // fatal, so we exit with code 1.
+//     std::process::exit(1);
+// }
 
-pub fn print_warn(err: Error, loader: &Loader) {
-    let inputs = loader.as_inputs();
-    let err_doc = err.report(&inputs);
-    print_doc_stderr(err_doc);
-}
+// pub fn print_warn(err: Error, loader: &Loader) {
+//     let inputs = loader.as_inputs();
+//     let err_doc = err.report(&inputs);
+//     print_doc_stderr(err_doc);
+// }
 
-fn print_doc_stderr(doc: Doc) {
-    let stderr = std::io::stderr();
-    let markup = MarkupMode::Ansi;
-    let cfg = pprint::Config { width: 80 };
-    let result = doc.println(&cfg);
-    let mut out = stderr.lock();
-    print_string(markup, result, &mut out);
-}
+// fn print_doc_stderr(doc: Doc) {
+//     let stderr = std::io::stderr();
+//     let markup = MarkupMode::Ansi;
+//     let cfg = pprint::Config { width: 80 };
+//     let result = doc.println(&cfg);
+//     let mut out = stderr.lock();
+//     print_string(markup, result, &mut out);
+// }
 
-fn print_string(mode: MarkupMode, data: MarkupString, out: &mut dyn Write) {
-    let res = data.write_bytes(mode, out);
-    if res.is_err() {
-        // If we fail to print to stdout/stderr, there is no point in
-        // printing an error, just exit then.
-        std::process::exit(1);
-    }
-}
+// fn print_string(mode: MarkupMode, data: MarkupString, out: &mut dyn Write) {
+//     let res = data.write_bytes(mode, out);
+//     if res.is_err() {
+//         // If we fail to print to stdout/stderr, there is no point in
+//         // printing an error, just exit then.
+//         std::process::exit(1);
+//     }
+// }
 
 pub struct Runbook {
     groups: HashMap<String, GroupConfig>,
@@ -137,7 +135,7 @@ impl Runbook {
         };
 
         let body = hcl_edit::parser::parse_body(&origin.data)
-            .map_err(|e| Error::new(e.message().to_string()))?;
+            .map_err(|e| Error::from_hcl(e, path.to_path_buf()))?;
 
         for structure in body.iter() {
             if let Structure::Block(block) = structure {
@@ -549,9 +547,13 @@ impl Runbook {
     }
 }
 
-pub fn run(loader: &mut Loader, runbooks: Vec<String>, check: bool) -> Result<Vec<PathBuf>, Error> {
+pub fn run(runbooks: Vec<String>, check: bool) -> Result<Vec<PathBuf>, Error> {
     let mut app = tiron_tui::app::App::new();
-    let config = Config::load(loader, &app.tx)?;
+    let config = Config {
+        tx: app.tx.clone(),
+        groups: HashMap::new(),
+        project_folder: PathBuf::from("."),
+    };
 
     let runbooks: Vec<PathBuf> = runbooks
         .iter()
