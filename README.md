@@ -24,10 +24,10 @@
 </div>
 
 ## Features
-* **No YAML:** Tiron uses a new configuration language called [rcl](https://github.com/ruuda/rcl), which is simple to write with some basic code functionalities.
+* **No YAML:** Tiron uses [HCL](https://github.com/hashicorp/hcl) as the configuration language.
 * **Agentless:** By using SSH, Tiron connects to the remote machines without the need to install an agent first.
 * **TUI:** Tiron has a built in terminal user interfaces to display the outputs of the running tasks.
-* **Correctness:** Tiron pre validates all the rcl files and will throw errors before the task is started to execute.
+* **Correctness:** Tiron pre validates all the runbook files and will throw errors before the task is started to execute.
 * **Speed:** On validating all the input, Tiron also pre populates all the data for tasks, and send them to the remote machines in one go to save the roundtrips between the client and remote.  
 
 ## Quickstart

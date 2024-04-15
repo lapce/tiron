@@ -1,13 +1,17 @@
-use std::{io::Write, path::Path};
+use std::io::Write;
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
 use documented::{Documented, DocumentedFields};
-use rcl::{error::Error, runtime::Value};
 use serde::{Deserialize, Serialize};
-use tiron_common::action::{ActionId, ActionMessage};
+use tiron_common::{
+    action::{ActionId, ActionMessage},
+    error::Error,
+};
 
-use super::{command::run_command, Action, ActionDoc, ActionParamDoc, ActionParamType};
+use super::{
+    command::run_command, Action, ActionDoc, ActionParamDoc, ActionParamType, ActionParams,
+};
 
 /// Copy the file to the remote machine
 #[derive(Default, Clone, Serialize, Deserialize, Documented, DocumentedFields)]
@@ -48,41 +52,22 @@ impl Action for CopyAction {
         }
     }
 
-    fn input(&self, cwd: &Path, params: Option<&Value>) -> Result<Vec<u8>, Error> {
-        let Some(value) = params else {
-            return Error::new("can't find params").err();
-        };
-        let Value::Dict(dict, dict_span) = value else {
-            return Error::new("params should be a Dict")
-                .with_origin(*value.span())
-                .err();
-        };
-        let Some(src) = dict.get(&Value::String("src".into(), None)) else {
-            return Error::new("can't find src").with_origin(*dict_span).err();
-        };
-        let Value::String(src, src_span) = src else {
-            return Error::new("src isn't string")
-                .with_origin(*src.span())
-                .err();
-        };
-        let src_file = cwd.join(src.as_ref());
+    fn input(&self, params: ActionParams) -> Result<Vec<u8>, Error> {
+        let (src, src_span) = params.expect_string_with_span(0);
+        let src_file = params.origin.cwd.join(src);
         let meta = src_file
             .metadata()
-            .map_err(|_| Error::new("can't find src file").with_origin(*src_span))?;
+            .map_err(|_| Error::new("can't find src file").with_origin(params.origin, src_span))?;
         if !meta.is_file() {
-            return Error::new("src isn't a file").with_origin(*src_span).err();
-        }
-        let content = std::fs::read(&src_file)
-            .map_err(|e| Error::new(format!("read src file error: {e}")).with_origin(*src_span))?;
-
-        let Some(dest) = dict.get(&Value::String("dest".into(), None)) else {
-            return Error::new("can't find dest").with_origin(*dict_span).err();
-        };
-        let Value::String(dest, _) = dest else {
-            return Error::new("dest isn't string")
-                .with_origin(*dest.span())
+            return Error::new("src isn't a file")
+                .with_origin(params.origin, src_span)
                 .err();
-        };
+        }
+        let content = std::fs::read(&src_file).map_err(|e| {
+            Error::new(format!("read src file error: {e}")).with_origin(params.origin, src_span)
+        })?;
+
+        let dest = params.expect_string(1);
 
         let input = CopyAction {
             src: src_file.to_string_lossy().to_string(),
@@ -90,7 +75,8 @@ impl Action for CopyAction {
             dest: dest.to_string(),
         };
         let input = bincode::serialize(&input).map_err(|e| {
-            Error::new(format!("serialize action input error: {e}")).with_origin(*value.span())
+            Error::new(format!("serialize action input error: {e}"))
+                .with_origin(params.origin, &params.span)
         })?;
 
         Ok(input)

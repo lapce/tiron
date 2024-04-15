@@ -36,6 +36,8 @@ members = [
 ]
 
 [workspace.dependencies]
+hcl-rs            = { git = "https://github.com/lapce/hcl-rs", rev = "fb0ac2875760a8219899f5a4d774d0996a5b06dd" }
+hcl-edit          = { git = "https://github.com/lapce/hcl-rs", rev = "fb0ac2875760a8219899f5a4d774d0996a5b06dd" }
 tempfile          = "3.10.1"
 os_info           = "3.7"
 itertools         = "0.12.1"
@@ -55,5 +57,3 @@ tiron             = { path = "./tiron" }
 tiron-tui         = { path = "./tiron-tui" }
 tiron-node        = { path = "./tiron-node" }
 tiron-common      = { path = "./tiron-common" }
-rcl               = { git = "https://github.com/lapce/rcl", rev = "78796fe8845a2a129b21093604006501fa5cde24" }
-# rcl               = { path = "../rcl" }

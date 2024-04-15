@@ -1,9 +1,11 @@
 use anyhow::anyhow;
 use documented::{Documented, DocumentedFields};
-use rcl::{error::Error, runtime::Value};
 use serde::{Deserialize, Serialize};
+use tiron_common::error::Error;
 
-use super::{command::run_command, Action, ActionDoc, ActionParamDoc, ActionParamType};
+use super::{
+    command::run_command, Action, ActionDoc, ActionParamDoc, ActionParamType, ActionParams,
+};
 
 /// Manage Git repositories
 #[derive(Default, Clone, Serialize, Deserialize, Documented, DocumentedFields)]
@@ -39,38 +41,17 @@ impl Action for GitAction {
         }
     }
 
-    fn input(&self, _cwd: &std::path::Path, params: Option<&Value>) -> Result<Vec<u8>, Error> {
-        let Some(params) = params else {
-            return Error::new("can't find params").err();
-        };
-        let Value::Dict(dict, dict_span) = params else {
-            return Error::new("params should be a Dict")
-                .with_origin(*params.span())
-                .err();
-        };
-        let Some(repo) = dict.get(&Value::String("repo".into(), None)) else {
-            return Error::new("can't find repo").with_origin(*dict_span).err();
-        };
-        let Value::String(repo, _) = repo else {
-            return Error::new("repo should be a string")
-                .with_origin(*repo.span())
-                .err();
-        };
-        let Some(dest) = dict.get(&Value::String("dest".into(), None)) else {
-            return Error::new("can't find dest").with_origin(*dict_span).err();
-        };
-        let Value::String(dest, _) = dest else {
-            return Error::new("dest should be a string")
-                .with_origin(*dest.span())
-                .err();
-        };
+    fn input(&self, params: ActionParams) -> Result<Vec<u8>, Error> {
+        let repo = params.expect_string(0);
+        let dest = params.expect_string(1);
 
         let input = GitAction {
             repo: repo.to_string(),
             dest: dest.to_string(),
         };
         let input = bincode::serialize(&input).map_err(|e| {
-            Error::new(format!("serialize action input error: {e}")).with_origin(*params.span())
+            Error::new(format!("serialize action input error: {e}"))
+                .with_origin(params.origin, &params.span)
         })?;
         Ok(input)
     }

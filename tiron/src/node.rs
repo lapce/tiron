@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
-use rcl::runtime::Value;
 use tiron_common::{
     action::{ActionData, ActionMessage},
     node::NodeMessage,
@@ -21,28 +20,34 @@ pub struct Node {
     pub host: String,
     pub remote_user: Option<String>,
     pub become_: bool,
-    pub vars: HashMap<String, Value>,
+    pub vars: HashMap<String, hcl::Value>,
     pub actions: Vec<ActionData>,
     pub tx: Sender<AppEvent>,
 }
 
 impl Node {
-    pub fn new(host: String, vars: HashMap<String, Value>, tx: &Sender<AppEvent>) -> Self {
+    pub fn new(host: String, new_vars: HashMap<String, hcl::Value>, tx: &Sender<AppEvent>) -> Self {
         Self {
             id: Uuid::new_v4(),
             host,
-            remote_user: vars.get("remote_user").and_then(|v| {
-                if let Value::String(s, _) = v {
+            remote_user: new_vars.get("remote_user").and_then(|v| {
+                if let hcl::Value::String(s) = v {
                     Some(s.to_string())
                 } else {
                     None
                 }
             }),
-            become_: vars
+            become_: new_vars
                 .get("become")
-                .map(|v| if let Value::Bool(b) = v { *b } else { false })
+                .map(|v| {
+                    if let hcl::Value::Bool(b) = v {
+                        *b
+                    } else {
+                        false
+                    }
+                })
                 .unwrap_or(false),
-            vars,
+            vars: new_vars,
             actions: Vec::new(),
             tx: tx.clone(),
         }

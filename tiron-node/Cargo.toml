@@ -4,13 +4,14 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+hcl-rs            = { workspace = true }
+hcl-edit          = { workspace = true }
 itertools         = { workspace = true }
 tempfile          = { workspace = true }
 serde_json        = { workspace = true }
 os_info           = { workspace = true }
 documented        = { workspace = true }
 uuid              = { workspace = true }
-rcl               = { workspace = true }
 clap              = { workspace = true }
 serde             = { workspace = true }
 anyhow            = { workspace = true }

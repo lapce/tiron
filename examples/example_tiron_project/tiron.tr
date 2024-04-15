@@ -1,0 +1,17 @@
+group "group1"  {
+    host "machine1" {}
+}
+
+group "group2" {
+    host "machine1" {
+        var1 = "machine1_var1"
+    }
+    
+    group "group1" {
+        var3 = "var3"
+    }
+    
+    apache = "apache2"
+    var1 = "var1"
+    var2 = "var2"
+}

@@ -14,13 +14,13 @@ pub enum CliCmd {
     /// Run Tiron runbooks
     Run {
         /// The runbooks for Tiron to run.
-        /// Default to main.rcl if unspecified
+        /// Default to main.tr if unspecified
         runbooks: Vec<String>,
     },
     /// Check Tiron runbooks
     Check {
         /// The runbooks for Tiron to check.
-        /// Default to main.rcl if unspecified
+        /// Default to main.tr if unspecified
         runbooks: Vec<String>,
     },
     /// Show Tiron action docs
