@@ -31,7 +31,7 @@ run "production" {
         
     action "copy" {
         params {
-            src  = "/tmp/test.rcl" 
+            src  = "/tmp/test.tr" 
             dest = "/tmp/test.conf"
         }
     }
@@ -54,7 +54,7 @@ run "group2" {
     }
     action "copy" {
         params {
-            src  = "/tmp/test.rcl" 
+            src  = "/tmp/test.tr" 
             dest = "/tmp/test.conf"
         }
     }

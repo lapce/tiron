@@ -6,7 +6,7 @@ job "job1" {
     action "copy" {
         name = "the first action"
         params {
-            src  = "/tmp/test.rcl" 
+            src  = "/tmp/test.tr" 
             dest = "/tmp/test.conf"
         }
     }

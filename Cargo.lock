@@ -534,14 +534,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rcl"
-version = "0.2.0"
-source = "git+https://github.com/lapce/rcl?rev=78796fe8845a2a129b21093604006501fa5cde24#78796fe8845a2a129b21093604006501fa5cde24"
-dependencies = [
- "unicode-width",
-]
-
-[[package]]
 name = "redox_syscall"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -757,7 +749,6 @@ dependencies = [
  "hcl-edit",
  "hcl-rs",
  "itertools",
- "rcl",
  "serde",
  "strum",
  "strum_macros",
@@ -774,7 +765,6 @@ dependencies = [
  "anyhow",
  "hcl-edit",
  "hcl-rs",
- "rcl",
  "serde",
  "uuid",
 ]
@@ -796,7 +786,6 @@ dependencies = [
  "hcl-rs",
  "itertools",
  "os_info",
- "rcl",
  "serde",
  "serde_json",
  "tempfile",

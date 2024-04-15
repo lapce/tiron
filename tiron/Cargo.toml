@@ -15,7 +15,6 @@ serde             = { workspace = true }
 bincode           = { workspace = true }
 anyhow            = { workspace = true }
 uuid              = { workspace = true }
-rcl               = { workspace = true }
 tiron-tui         = { workspace = true }
 tiron-node        = { workspace = true }
 tiron-common      = { workspace = true }

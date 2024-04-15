@@ -8,5 +8,4 @@ hcl-rs               = { workspace = true }
 hcl-edit             = { workspace = true }
 anyhow               = { workspace = true }
 serde                = { workspace = true }
-rcl                  = { workspace = true }
 uuid                 = { workspace = true }

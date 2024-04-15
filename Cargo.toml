@@ -57,5 +57,3 @@ tiron             = { path = "./tiron" }
 tiron-tui         = { path = "./tiron-tui" }
 tiron-node        = { path = "./tiron-node" }
 tiron-common      = { path = "./tiron-common" }
-rcl               = { git = "https://github.com/lapce/rcl", rev = "78796fe8845a2a129b21093604006501fa5cde24" }
-# rcl               = { path = "../rcl" }
