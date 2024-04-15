@@ -5,18 +5,14 @@ mod file;
 mod git;
 mod package;
 
-use std::{
-    collections::{BTreeMap, HashMap},
-    fmt::Display,
-    ops::Range,
-};
+use std::{collections::HashMap, fmt::Display, ops::Range};
 
 use crossbeam_channel::Sender;
 use itertools::Itertools;
-use rcl::{runtime::Value, source::Span};
 use tiron_common::{
     action::{ActionId, ActionMessage},
     error::{Error, Origin},
+    value::SpannedValue,
 };
 
 pub trait Action {
@@ -40,22 +36,11 @@ pub enum ActionParamBaseType {
 }
 
 impl ActionParamBaseType {
-    fn parse_value(&self, value: &hcl::Value) -> Option<ActionParamBaseValue> {
+    fn parse_value(&self, value: &SpannedValue) -> Option<ActionParamBaseValue> {
         match self {
             ActionParamBaseType::String => {
-                if let hcl::Value::String(s) = value {
-                    return Some(ActionParamBaseValue::String(s.to_string()));
-                }
-            }
-        }
-        None
-    }
-
-    fn parse(&self, value: &Value) -> Option<ActionParamBaseValue> {
-        match self {
-            ActionParamBaseType::String => {
-                if let Value::String(s, _) = value {
-                    return Some(ActionParamBaseValue::String(s.to_string()));
+                if let SpannedValue::String(s) = value {
+                    return Some(ActionParamBaseValue::String(s.value().to_string()));
                 }
             }
         }
@@ -79,22 +64,25 @@ pub enum ActionParamType {
 }
 
 impl ActionParamType {
-    fn parse_attr(&self, value: &hcl::Value) -> Option<ActionParamValue> {
+    fn parse_attr(&self, value: &SpannedValue) -> Option<ActionParamValue> {
         match self {
             ActionParamType::String => {
-                if let hcl::Value::String(s) = value {
-                    return Some(ActionParamValue::String(s.to_string(), None));
+                if let SpannedValue::String(s) = value {
+                    return Some(ActionParamValue::String(
+                        s.value().to_string(),
+                        value.span().to_owned(),
+                    ));
                 }
             }
             ActionParamType::Bool => {
-                if let hcl::Value::Bool(v) = value {
-                    return Some(ActionParamValue::Bool(*v));
+                if let SpannedValue::Bool(v) = value {
+                    return Some(ActionParamValue::Bool(*v.value()));
                 }
             }
             ActionParamType::List(base) => {
-                if let hcl::Value::Array(v) = value {
+                if let SpannedValue::Array(v) = value {
                     let mut items = Vec::new();
-                    for v in v.iter() {
+                    for v in v.value().iter() {
                         let base = base.parse_value(v)?;
                         items.push(base);
                     }
@@ -141,7 +129,8 @@ pub struct ActionParamDoc {
 impl ActionParamDoc {
     fn parse_attrs(
         &self,
-        attrs: &HashMap<String, hcl::Value>,
+        origin: &Origin,
+        attrs: &HashMap<String, SpannedValue>,
     ) -> Result<Option<ActionParamValue>, Error> {
         let param = attrs.get(&self.name);
 
@@ -151,16 +140,20 @@ impl ActionParamDoc {
                     return Ok(Some(value));
                 }
             }
-            return Error::new(format!(
-                "{} type should be {}",
-                self.name,
-                self.type_.iter().map(|t| t.to_string()).join(" or ")
-            ))
-            .err();
+            return origin
+                .error(
+                    format!(
+                        "{} type should be {}",
+                        self.name,
+                        self.type_.iter().map(|t| t.to_string()).join(" or ")
+                    ),
+                    param.span(),
+                )
+                .err();
         }
 
         if self.required {
-            return Error::new(format!("can't find {}", self.name,)).err();
+            return Error::new(format!("can't find {} in params, it's required", self.name)).err();
         }
 
         Ok(None)
@@ -176,11 +169,11 @@ impl ActionDoc {
     pub fn parse_attrs<'a>(
         &self,
         origin: &'a Origin,
-        attrs: &HashMap<String, hcl::Value>,
+        attrs: &HashMap<String, SpannedValue>,
     ) -> Result<ActionParams<'a>, Error> {
         let mut values = Vec::new();
         for param in &self.params {
-            let value = param.parse_attrs(attrs)?;
+            let value = param.parse_attrs(origin, attrs)?;
             values.push(value);
         }
 
@@ -283,23 +276,11 @@ pub enum ActionParamBaseValue {
 }
 
 impl ActionParamBaseValue {
-    fn match_value_new(&self, value: &hcl::Value) -> bool {
+    fn match_value_new(&self, value: &SpannedValue) -> bool {
         match self {
             ActionParamBaseValue::String(base) => {
-                if let hcl::Value::String(s) = value {
-                    return base == &s.to_string();
-                }
-            }
-        }
-
-        false
-    }
-
-    fn match_value(&self, value: &Value) -> bool {
-        match self {
-            ActionParamBaseValue::String(base) => {
-                if let Value::String(s, _) = value {
-                    return base == &s.to_string();
+                if let SpannedValue::String(s) = value {
+                    return base == s.value();
                 }
             }
         }

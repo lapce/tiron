@@ -59,8 +59,8 @@ impl Error {
                 .filter(|&&b| b == b'\n')
                 .count()
                 + 1;
-            let start_col = span.start - line_begin;
-            let end_col = start_col + span.len();
+            let start_col = span.start - line_begin + 1;
+            let end_col = span.start - line_begin + span.len();
             self.location = Some(ErrorLocation {
                 path: origin.path.clone(),
                 line_content: line_content.to_string(),
@@ -98,7 +98,7 @@ impl Error {
             let line_len = location.line.to_string().len();
 
             result.push(" ".repeat(line_len + 1).into());
-            result.push("--> ".into());
+            result.push(Segment::from("--> ").with_markup(Markup::Error));
             let path = location.path.to_string_lossy();
             result.push(path.as_ref().into());
             let line_col = format!(":{}:{}\n", location.line, location.start_col);
@@ -114,7 +114,7 @@ impl Error {
             result.push(Segment::from("╵").with_markup(Markup::Error));
             result.push(" ".repeat(location.start_col).into());
             result.push("^".into());
-            for i in location.start_col..location.end_col {
+            for _ in location.start_col..location.end_col {
                 result.push("~".into());
             }
             result.push("\n".into());

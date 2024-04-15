@@ -1,22 +1,24 @@
-use std::{collections::HashMap, path::Path};
+use std::collections::HashMap;
 
 use anyhow::Result;
-use hcl::eval::{Context, Evaluate};
-use hcl_edit::structure::{Block, BlockLabel, Structure};
-use rcl::{loader::Loader, runtime::Value};
+use hcl::eval::Context;
+use hcl_edit::{
+    structure::{Block, BlockLabel, Structure},
+    Span,
+};
 use tiron_common::{
     action::{ActionData, ActionId},
-    error::{Error, Origin},
+    error::Error,
+    value::SpannedValue,
 };
 use tiron_node::action::data::all_actions;
 
-use crate::{config::Config, job::Job};
+use crate::core::Runbook;
 
-pub fn parse_actions_new(
-    origin: &Origin,
+pub fn parse_actions(
+    runbook: &Runbook,
     block: &Block,
     vars: &HashMap<String, hcl::Value>,
-    job_depth: &mut i32,
 ) -> Result<Vec<ActionData>, Error> {
     let all_actions = all_actions();
 
@@ -30,45 +32,119 @@ pub fn parse_actions_new(
         if let Structure::Block(block) = s {
             if block.ident.as_str() == "action" {
                 if block.labels.is_empty() {
-                    return Error::new("No action name").err();
+                    return runbook
+                        .origin
+                        .error("No action name", &block.ident.span())
+                        .err();
                 }
                 if block.labels.len() > 1 {
-                    return Error::new("You can only have one action name").err();
+                    return runbook
+                        .origin
+                        .error("You can only have one action name", &block.labels[1].span())
+                        .err();
                 }
                 let BlockLabel::String(action_name) = &block.labels[0] else {
-                    return Error::new("action name should be a string").err();
+                    return runbook
+                        .origin
+                        .error("action name should be a string", &block.labels[0].span())
+                        .err();
                 };
 
-                if action_name.as_str() == "job" {
-                    *job_depth += 1;
-                    if *job_depth > 500 {
-                        return Error::new("job name might have a endless loop here").err();
-                    }
-                    *job_depth -= 1;
+                let params = block.body.iter().find_map(|s| {
+                    s.as_block()
+                        .filter(|&block| block.ident.as_str() == "params")
+                });
+
+                let name = block.body.iter().find_map(|s| {
+                    s.as_attribute()
+                        .filter(|a| a.key.as_str() == "name")
+                        .map(|a| &a.value)
+                });
+                let name = if let Some(name) = name {
+                    let name =
+                        SpannedValue::from_expression(&runbook.origin, &ctx, name.to_owned())?;
+                    let SpannedValue::String(s) = name else {
+                        return runbook
+                            .origin
+                            .error("name should be a string", name.span())
+                            .err();
+                    };
+                    Some(s.value().to_string())
                 } else {
-                    let Some(action) = all_actions.get(action_name.as_str()) else {
-                        return Error::new(format!(
-                            "action {} can't be found",
-                            action_name.as_str()
-                        ))
-                        .err();
+                    None
+                };
+
+                let params = params.ok_or_else(|| {
+                    runbook
+                        .origin
+                        .error("action doesn't have params", &block.ident.span())
+                })?;
+
+                let mut attrs = HashMap::new();
+                for s in params.body.iter() {
+                    if let Some(a) = s.as_attribute() {
+                        let v = SpannedValue::from_expression(
+                            &runbook.origin,
+                            &ctx,
+                            a.value.to_owned(),
+                        )?;
+                        attrs.insert(a.key.to_string(), v);
+                    }
+                }
+
+                if action_name.as_str() == "job" {
+                    let job_name = attrs.get("name").ok_or_else(|| {
+                        runbook
+                            .origin
+                            .error("job doesn't have name in params", &params.ident.span())
+                    })?;
+                    let SpannedValue::String(job_name) = job_name else {
+                        return runbook
+                            .origin
+                            .error("job name should be a string", job_name.span())
+                            .err();
+                    };
+                    let job = runbook.jobs.get(job_name.value()).ok_or_else(|| {
+                        runbook.origin.error("can't find job name", job_name.span())
+                    })?;
+
+                    let runbook = if let Some(imported) = &job.imported {
+                        runbook.imports.get(imported).ok_or_else(|| {
+                            runbook
+                                .origin
+                                .error("can't find imported job", job_name.span())
+                        })?
+                    } else {
+                        runbook
                     };
 
-                    let mut attrs = HashMap::new();
-                    for s in block.body.iter() {
-                        if let Some(a) = s.as_attribute() {
-                            let expr: hcl::Expression = a.value.to_owned().into();
-                            let v: hcl::Value = expr
-                                .evaluate(&ctx)
-                                .map_err(|e| Error::new(e.to_string().replace('\n', " ")))?;
-                            attrs.insert(a.key.to_string(), v);
-                        }
-                    }
-                    let params = action.doc().parse_attrs(origin, &attrs)?;
+                    actions.append(&mut parse_actions(runbook, &job.block, vars)?);
+                } else {
+                    let Some(action) = all_actions.get(action_name.as_str()) else {
+                        return runbook
+                            .origin
+                            .error(
+                                format!("action {} can't be found", action_name.as_str()),
+                                &block.labels[0].span(),
+                            )
+                            .err();
+                    };
+
+                    let params =
+                        action
+                            .doc()
+                            .parse_attrs(&runbook.origin, &attrs)
+                            .map_err(|e| {
+                                let mut e = e;
+                                if e.location.is_none() {
+                                    e = e.with_origin(&runbook.origin, &params.ident.span());
+                                }
+                                e
+                            })?;
                     let input = action.input(params)?;
                     actions.push(ActionData {
                         id: ActionId::new(),
-                        name: action_name.to_string(),
+                        name: name.unwrap_or_else(|| action_name.to_string()),
                         action: action_name.to_string(),
                         input,
                     });

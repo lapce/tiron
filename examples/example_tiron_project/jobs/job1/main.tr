@@ -1,9 +1,18 @@
+use "test.tr" {
+    job "job2" {}
+}
+
 job "job1" {
     action "copy" {
         name = "the first action"
         params {
             src  = "/tmp/test.rcl" 
             dest = "/tmp/test.conf"
+        }
+    }
+    action "job" {
+        params {
+            name = "job2"
         }
     }
 }

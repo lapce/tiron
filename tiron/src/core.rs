@@ -1,21 +1,15 @@
-use std::{
-    collections::{HashMap, HashSet},
-    io::Write,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use crossbeam_channel::Sender;
 use hcl::eval::{Context, Evaluate};
-use hcl_edit::structure::{Block, BlockLabel, Structure};
-use itertools::Itertools;
-use rcl::{
-    ast::{Expr, Seq, Yield},
-    loader::Loader,
-    markup::{MarkupMode, MarkupString},
-    pprint::{self, Doc},
+use hcl_edit::{
+    structure::{Block, BlockLabel, Structure},
+    Span,
 };
+use itertools::Itertools;
+
 use tiron_common::error::{Error, Origin};
 use tiron_node::action::data::all_actions;
 use tiron_tui::event::{AppEvent, RunEvent};
@@ -99,29 +93,24 @@ pub fn cmd() {
 
 pub struct Runbook {
     groups: HashMap<String, GroupConfig>,
-    jobs: HashMap<String, Job>,
-    imports: HashSet<PathBuf>,
+    pub jobs: HashMap<String, Job>,
+    // the imported runbooks
+    pub imports: HashMap<PathBuf, Runbook>,
     runs: Vec<Run>,
+    // the origin data of the runbook
+    pub origin: Origin,
     tx: Sender<AppEvent>,
+    // the imported level of the runbook, this is to detect circular imports
+    level: usize,
 }
 
 impl Runbook {
-    pub fn new(tx: Sender<AppEvent>) -> Self {
-        Self {
-            groups: HashMap::new(),
-            jobs: HashMap::new(),
-            imports: HashSet::new(),
-            runs: Vec::new(),
-            tx,
-        }
-    }
-
-    pub fn parse(&mut self, path: &Path) -> Result<(), Error> {
+    pub fn new(path: PathBuf, tx: Sender<AppEvent>, level: usize) -> Result<Self, Error> {
         let cwd = path.parent().ok_or_else(|| {
             Error::new(format!("can't find parent for {}", path.to_string_lossy()))
         })?;
 
-        let data = std::fs::read_to_string(path).map_err(|e| {
+        let data = std::fs::read_to_string(&path).map_err(|e| {
             Error::new(format!(
                 "can't read runbook {} error: {e}",
                 path.to_string_lossy()
@@ -130,18 +119,31 @@ impl Runbook {
 
         let origin = Origin {
             cwd: cwd.to_path_buf(),
-            path: path.to_path_buf(),
+            path,
             data,
         };
+        let runbook = Self {
+            origin,
+            groups: HashMap::new(),
+            jobs: HashMap::new(),
+            imports: HashMap::new(),
+            runs: Vec::new(),
+            tx,
+            level,
+        };
 
-        let body = hcl_edit::parser::parse_body(&origin.data)
-            .map_err(|e| Error::from_hcl(e, path.to_path_buf()))?;
+        Ok(runbook)
+    }
+
+    pub fn parse(&mut self, parse_run: bool) -> Result<(), Error> {
+        let body = hcl_edit::parser::parse_body(&self.origin.data)
+            .map_err(|e| Error::from_hcl(e, self.origin.path.clone()))?;
 
         for structure in body.iter() {
             if let Structure::Block(block) = structure {
                 match block.ident.as_str() {
                     "use" => {
-                        self.parse_use(cwd, block)?;
+                        self.parse_use(block)?;
                     }
                     "group" => {
                         self.parse_group(block)?;
@@ -150,7 +152,10 @@ impl Runbook {
                         self.parse_job(block)?;
                     }
                     "run" => {
-                        self.parse_run(&origin, block)?;
+                        if parse_run {
+                            // for imported runbook, we don't need to parse runs
+                            self.parse_run(block)?;
+                        }
                     }
                     _ => {}
                 }
@@ -160,20 +165,32 @@ impl Runbook {
         Ok(())
     }
 
-    fn parse_run(&mut self, origin: &Origin, block: &Block) -> Result<(), Error> {
+    fn parse_run(&mut self, block: &Block) -> Result<(), Error> {
         let mut hosts: Vec<Node> = Vec::new();
         if block.labels.is_empty() {
-            return Error::new("You need put group name after run").err();
+            return self
+                .origin
+                .error("You need put group name after run", &block.ident.span())
+                .err();
         }
         if block.labels.len() > 1 {
-            return Error::new("You can only have one group name to run").err();
+            return self
+                .origin
+                .error(
+                    "You can only have one group name to run",
+                    &block.labels[1].span(),
+                )
+                .err();
         }
         let BlockLabel::String(name) = &block.labels[0] else {
-            return Error::new("group name should be a string").err();
+            return self
+                .origin
+                .error("group name should be a string", &block.labels[0].span())
+                .err();
         };
         for node in self
             .hosts_from_name(name.as_str())
-            .map_err(|e| Error::new(e.to_string()))?
+            .map_err(|e| self.origin.error(e.to_string(), &block.labels[0].span()))?
         {
             if !hosts.iter().any(|n| n.host == node.host) {
                 hosts.push(node);
@@ -185,7 +202,6 @@ impl Runbook {
                 id: Uuid::new_v4(),
                 host: "localhost".to_string(),
                 vars: HashMap::new(),
-                new_vars: HashMap::new(),
                 remote_user: None,
                 become_: false,
                 actions: Vec::new(),
@@ -194,30 +210,42 @@ impl Runbook {
         } else {
             hosts
         };
-        let run = Run::from_block(origin, None, block, hosts)?;
+        let run = Run::from_block(self, None, block, hosts)?;
         self.runs.push(run);
         Ok(())
     }
 
     fn parse_group(&mut self, block: &Block) -> Result<(), Error> {
         if block.labels.is_empty() {
-            return Error::new("group name doesn't exit").err();
+            return self
+                .origin
+                .error("group name doesn't exit", &block.ident.span())
+                .err();
         }
         if block.labels.len() > 1 {
-            return Error::new("group should only have one name").err();
+            return self
+                .origin
+                .error("group should only have one name", &block.labels[1].span())
+                .err();
         }
         let BlockLabel::String(name) = &block.labels[0] else {
-            return Error::new("group name should be a string").err();
+            return self
+                .origin
+                .error("group name should be a string", &block.labels[0].span())
+                .err();
         };
 
         if self.groups.contains_key(name.as_str()) {
-            return Error::new("group name already exists").err();
+            return self
+                .origin
+                .error("group name already exists", &block.labels[0].span())
+                .err();
         }
 
         let mut group_config = GroupConfig {
             hosts: Vec::new(),
             vars: HashMap::new(),
-            new_vars: HashMap::new(),
+            imported: None,
         };
 
         let ctx = Context::new();
@@ -228,7 +256,7 @@ impl Runbook {
                     let v: hcl::Value = expr
                         .evaluate(&ctx)
                         .map_err(|e| Error::new(e.to_string().replace('\n', " ")))?;
-                    group_config.new_vars.insert(a.key.to_string(), v);
+                    group_config.vars.insert(a.key.to_string(), v);
                 }
                 Structure::Block(block) => {
                     let host_or_group = self.parse_group_entry(name, block)?;
@@ -250,47 +278,78 @@ impl Runbook {
         let host_or_group = match block.ident.as_str() {
             "host" => {
                 if block.labels.is_empty() {
-                    return Error::new("host name doesn't exit").err();
+                    return self
+                        .origin
+                        .error("host name doesn't exit", &block.ident.span())
+                        .err();
                 }
                 if block.labels.len() > 1 {
-                    return Error::new("host should only have one name").err();
+                    return self
+                        .origin
+                        .error("host should only have one name", &block.labels[1].span())
+                        .err();
                 }
 
                 let BlockLabel::String(name) = &block.labels[0] else {
-                    return Error::new("host name should be a string").err();
+                    return self
+                        .origin
+                        .error("host name should be a string", &block.labels[0].span())
+                        .err();
                 };
 
                 HostOrGroup::Host(name.to_string())
             }
             "group" => {
                 if block.labels.is_empty() {
-                    return Error::new("group name doesn't exit").err();
+                    return self
+                        .origin
+                        .error("group name doesn't exit", &block.ident.span())
+                        .err();
                 }
                 if block.labels.len() > 1 {
-                    return Error::new("group should only have one name").err();
+                    return self
+                        .origin
+                        .error("group should only have one name", &block.labels[1].span())
+                        .err();
                 }
 
                 let BlockLabel::String(name) = &block.labels[0] else {
-                    return Error::new("group name should be a string").err();
+                    return self
+                        .origin
+                        .error("group name should be a string", &block.labels[0].span())
+                        .err();
                 };
 
                 if name.as_str() == group_name {
-                    return Error::new("group can't point to itself").err();
+                    return self
+                        .origin
+                        .error("group can't point to itself", &block.labels[0].span())
+                        .err();
                 }
 
                 if !self.groups.contains_key(name.as_str()) {
-                    return Error::new(format!("group {} doesn't exist", name.as_str())).err();
+                    return self
+                        .origin
+                        .error(
+                            format!("group {} doesn't exist", name.as_str()),
+                            &block.labels[0].span(),
+                        )
+                        .err();
                 }
 
                 HostOrGroup::Group(name.to_string())
             }
-            _ => return Error::new("you can only have host or group").err(),
+            _ => {
+                return self
+                    .origin
+                    .error("you can only have host or group", &block.ident.span())
+                    .err()
+            }
         };
 
         let mut host_config = HostOrGroupConfig {
             host: host_or_group,
             vars: HashMap::new(),
-            new_vars: HashMap::new(),
         };
 
         let ctx = Context::new();
@@ -300,35 +359,62 @@ impl Runbook {
                 let v: hcl::Value = expr
                     .evaluate(&ctx)
                     .map_err(|e| Error::new(e.to_string().replace('\n', " ")))?;
-                host_config.new_vars.insert(a.key.to_string(), v);
+                host_config.vars.insert(a.key.to_string(), v);
             }
         }
 
         Ok(host_config)
     }
 
-    fn parse_use(&mut self, cwd: &Path, block: &Block) -> Result<(), Error> {
+    fn parse_use(&mut self, block: &Block) -> Result<(), Error> {
         if block.labels.is_empty() {
-            return Error::new("use needs a path").err();
+            return self
+                .origin
+                .error("use needs a path", &block.ident.span())
+                .err();
         }
         if block.labels.len() > 1 {
-            return Error::new("You can only have one path for use").err();
+            return self
+                .origin
+                .error(
+                    "You can only have one path for use",
+                    &block.labels[1].span(),
+                )
+                .err();
         }
         let BlockLabel::String(name) = &block.labels[0] else {
-            return Error::new("path should be a string").err();
+            return self
+                .origin
+                .error("path should be a string", &block.labels[0].span())
+                .err();
         };
 
-        let path = cwd
+        let path = self.origin.cwd.join(name.as_str());
+
+        let mut runbook = Runbook::new(path, self.tx.clone(), self.level + 1)?;
+        runbook.parse(false).map_err(|e| {
+            let mut e = e;
+            if e.location.is_none() {
+                e = e.with_origin(&self.origin, &block.labels[0].span());
+            }
+            e
+        })?;
+
+        let path = self
+            .origin
+            .cwd
             .join(name.as_str())
             .canonicalize()
-            .map_err(|e| Error::new(format!("can't canonicalize path: {e}")))?;
-        if self.imports.contains(&path) {
-            return Error::new("path already imported").err();
+            .map_err(|e| {
+                Error::new(format!("can't canonicalize path: {e}"))
+                    .with_origin(&self.origin, &block.labels[0].span())
+            })?;
+        if self.imports.contains_key(&path) {
+            return self
+                .origin
+                .error("path already imported", &block.labels[0].span())
+                .err();
         }
-
-        let mut runbook = Runbook::new(self.tx.clone());
-        runbook.parse(&path)?;
-        self.imports.insert(path);
 
         for structure in block.body.iter() {
             if let Structure::Block(block) = structure {
@@ -344,18 +430,29 @@ impl Runbook {
             }
         }
 
+        self.imports.insert(path, runbook);
+
         Ok(())
     }
 
     fn parse_use_job(&mut self, imported: &Runbook, block: &Block) -> Result<(), Error> {
         if block.labels.is_empty() {
-            return Error::new("use job needs a job name").err();
+            return self
+                .origin
+                .error("use job needs a job name", &block.ident.span())
+                .err();
         }
         if block.labels.len() > 1 {
-            return Error::new("You can only use one job name").err();
+            return self
+                .origin
+                .error("You can only use one job name", &block.labels[1].span())
+                .err();
         }
         let BlockLabel::String(name) = &block.labels[0] else {
-            return Error::new("job name should be a string").err();
+            return self
+                .origin
+                .error("job name should be a string", &block.labels[0].span())
+                .err();
         };
 
         let as_name = block.body.iter().find_map(|s| {
@@ -370,13 +467,23 @@ impl Runbook {
 
         let imported_name = as_name.unwrap_or(name.as_str());
         if self.jobs.contains_key(imported_name) {
-            return Error::new("job name already exists").err();
+            return self
+                .origin
+                .error("job name already exists", &block.labels[0].span())
+                .err();
         }
 
-        let job = imported
+        let mut job = imported
             .jobs
             .get(name.as_str())
-            .ok_or_else(|| Error::new("job name can't be imported"))?;
+            .ok_or_else(|| {
+                self.origin.error(
+                    "job name can't be imported, it doesn't exit in the imported runbook",
+                    &block.labels[0].span(),
+                )
+            })?
+            .clone();
+        job.imported = Some(imported.origin.path.clone());
 
         self.jobs.insert(imported_name.to_string(), job.to_owned());
 
@@ -394,7 +501,6 @@ impl Runbook {
                             return Ok(vec![Node::new(
                                 host_name.to_string(),
                                 host.vars.clone(),
-                                host.new_vars.clone(),
                                 &self.tx,
                             )]);
                         }
@@ -407,13 +513,22 @@ impl Runbook {
 
     fn parse_use_group(&mut self, imported: &Runbook, block: &Block) -> Result<(), Error> {
         if block.labels.is_empty() {
-            return Error::new("use group needs a group name").err();
+            return self
+                .origin
+                .error("use group needs a group name", &block.ident.span())
+                .err();
         }
         if block.labels.len() > 1 {
-            return Error::new("You can only use one group name").err();
+            return self
+                .origin
+                .error("You can only use one group name", &block.labels[1].span())
+                .err();
         }
         let BlockLabel::String(name) = &block.labels[0] else {
-            return Error::new("group name should be a string").err();
+            return self
+                .origin
+                .error("group name should be a string", &block.labels[0].span())
+                .err();
         };
 
         let as_name = block.body.iter().find_map(|s| {
@@ -428,16 +543,25 @@ impl Runbook {
 
         let imported_name = as_name.unwrap_or(name.as_str());
         if self.groups.contains_key(imported_name) {
-            return Error::new("group name already exists").err();
+            return self
+                .origin
+                .error("group name already exists", &block.labels[0].span())
+                .err();
         }
 
-        let group = imported
+        let mut group = imported
             .groups
             .get(name.as_str())
-            .ok_or_else(|| Error::new("job name can't be imported"))?;
+            .ok_or_else(|| {
+                self.origin.error(
+                    "group name can't be imported, it doesn't exit in the imported runbook",
+                    &block.labels[0].span(),
+                )
+            })?
+            .clone();
+        group.imported = Some(imported.origin.path.clone());
 
-        self.groups
-            .insert(imported_name.to_string(), group.to_owned());
+        self.groups.insert(imported_name.to_string(), group);
 
         Ok(())
     }
@@ -447,6 +571,14 @@ impl Runbook {
             return Err(anyhow!("hosts doesn't have group {group}"));
         };
 
+        let runbook = if let Some(imported) = &group.imported {
+            self.imports
+                .get(imported)
+                .ok_or_else(|| anyhow!("can't find imported"))?
+        } else {
+            self
+        };
+
         let mut hosts = Vec::new();
         for host_or_group in &group.hosts {
             let mut local_hosts = match &host_or_group.host {
@@ -454,15 +586,14 @@ impl Runbook {
                     vec![Node::new(
                         name.to_string(),
                         host_or_group.vars.clone(),
-                        host_or_group.new_vars.clone(),
                         &self.tx,
                     )]
                 }
                 HostOrGroup::Group(group) => {
-                    let mut local_hosts = self.hosts_from_group(group)?;
+                    let mut local_hosts = runbook.hosts_from_group(group)?;
                     for host in local_hosts.iter_mut() {
-                        for (key, val) in &host_or_group.new_vars {
-                            if !host.new_vars.contains_key(key) {
+                        for (key, val) in &host_or_group.vars {
+                            if !host.vars.contains_key(key) {
                                 if key == "remote_user" && host.remote_user.is_none() {
                                     host.remote_user = if let hcl::Value::String(s) = val {
                                         Some(s.to_string())
@@ -470,7 +601,7 @@ impl Runbook {
                                         None
                                     };
                                 }
-                                host.new_vars.insert(key.to_string(), val.clone());
+                                host.vars.insert(key.to_string(), val.clone());
                             }
                         }
                     }
@@ -478,8 +609,8 @@ impl Runbook {
                 }
             };
             for host in local_hosts.iter_mut() {
-                for (key, val) in &group.new_vars {
-                    if !host.new_vars.contains_key(key) {
+                for (key, val) in &group.vars {
+                    if !host.vars.contains_key(key) {
                         if key == "remote_user" && host.remote_user.is_none() {
                             host.remote_user = if let hcl::Value::String(s) = val {
                                 Some(s.to_string())
@@ -487,7 +618,7 @@ impl Runbook {
                                 None
                             };
                         }
-                        host.new_vars.insert(key.to_string(), val.clone());
+                        host.vars.insert(key.to_string(), val.clone());
                     }
                 }
             }
@@ -511,35 +642,36 @@ impl Runbook {
             return Error::new("job name already exists").err();
         }
 
-        for s in block.body.iter() {
-            if let Structure::Block(block) = s {
-                if block.ident.as_str() == "action" && block.labels.len() == 1 {
-                    let BlockLabel::String(action_name) = &block.labels[0] else {
-                        return Error::new("action name should be a string").err();
-                    };
-                    if action_name.as_str() == "job" {
-                        let job_name = block
-                            .body
-                            .iter()
-                            .find_map(|s| {
-                                s.as_attribute().and_then(|a| {
-                                    if a.key.as_str() == "name" {
-                                        a.value.as_str()
-                                    } else {
-                                        None
-                                    }
-                                })
-                            })
-                            .ok_or_else(|| Error::new("job don't have name"))?;
-                    }
-                }
-            }
-        }
+        // for s in block.body.iter() {
+        //     if let Structure::Block(block) = s {
+        //         if block.ident.as_str() == "action" && block.labels.len() == 1 {
+        //             let BlockLabel::String(action_name) = &block.labels[0] else {
+        //                 return Error::new("action name should be a string").err();
+        //             };
+        //             if action_name.as_str() == "job" {
+        //                 let job_name = block
+        //                     .body
+        //                     .iter()
+        //                     .find_map(|s| {
+        //                         s.as_attribute().and_then(|a| {
+        //                             if a.key.as_str() == "name" {
+        //                                 a.value.as_str()
+        //                             } else {
+        //                                 None
+        //                             }
+        //                         })
+        //                     })
+        //                     .ok_or_else(|| Error::new("job don't have name"))?;
+        //             }
+        //         }
+        //     }
+        // }
 
         self.jobs.insert(
             name.to_string(),
             Job {
                 block: block.to_owned(),
+                imported: None,
             },
         );
 
@@ -573,8 +705,8 @@ pub fn run(runbooks: Vec<String>, check: bool) -> Result<Vec<PathBuf>, Error> {
 
     let mut runs = Vec::new();
     for path in runbooks.iter() {
-        let mut runbook = Runbook::new(config.tx.clone());
-        runbook.parse(path)?;
+        let mut runbook = Runbook::new(path.to_path_buf(), config.tx.clone(), 0)?;
+        runbook.parse(true)?;
         runs.push(runbook.runs);
     }
     let runs: Vec<Run> = runs.into_iter().flatten().collect();
@@ -603,8 +735,6 @@ pub fn run(runbooks: Vec<String>, check: bool) -> Result<Vec<PathBuf>, Error> {
 
     Ok(runbooks)
 }
-
-fn parse_use(block: &Block) {}
 
 fn action_doc(name: Option<String>) {
     let actions = all_actions();

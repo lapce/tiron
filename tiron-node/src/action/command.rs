@@ -1,6 +1,5 @@
 use std::{
     io::{BufRead, BufReader},
-    path::Path,
     process::{ExitStatus, Stdio},
 };
 

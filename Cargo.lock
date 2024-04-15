@@ -773,6 +773,7 @@ version = "0.1.5"
 dependencies = [
  "anyhow",
  "hcl-edit",
+ "hcl-rs",
  "rcl",
  "serde",
  "uuid",

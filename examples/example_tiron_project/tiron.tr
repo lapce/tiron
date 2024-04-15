@@ -1,4 +1,4 @@
-group "group1" {
+group "group1"  {
     host "machine1" {}
 }
 

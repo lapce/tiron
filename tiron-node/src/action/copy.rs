@@ -1,4 +1,4 @@
-use std::{io::Write, path::Path};
+use std::io::Write;
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;

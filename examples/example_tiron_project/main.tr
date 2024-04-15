@@ -1,9 +1,7 @@
-// use "jobs/job1/main.tr" {
-//     job "job1" {
-//         as = "another_job_name"
-//     }
-//     job "job2" {}
-// }
+use "jobs/job1/main.tr" {
+    job "job1" {
+    }
+}
 
 use "tiron.tr" {
     group "group2" {}
@@ -15,17 +13,14 @@ group "production" {
     }
 }
 
+group "gropu3" {
+    group "group2" {}
+}
+
 run "production" {
     name        = "initial run"
     remote_user = "dz"
     become      = true
-        
-    action "copy" {
-        params {
-            src  = "/tmp/test.rcl" 
-            dest = "/tmp/test.conf"
-        }
-    }
         
     action "package" {
         params {
@@ -34,10 +29,17 @@ run "production" {
         }
     }
         
+    action "copy" {
+        params {
+            src  = "/tmp/test.rcl" 
+            dest = "/tmp/test.conf"
+        }
+    }
+        
     action "job" {
         name = "run job1"
         params {
-            
+            name = "job1"
         } 
     }
 }

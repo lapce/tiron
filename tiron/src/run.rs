@@ -1,20 +1,10 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
-
 use anyhow::Result;
 use hcl_edit::structure::Block;
-use rcl::{
-    loader::Loader,
-    markup::MarkupMode,
-    pprint::Doc,
-    runtime::Value,
-    source::Span,
-    types::{SourcedType, Type},
-};
-use tiron_common::error::{Error, Origin};
+use tiron_common::error::Error;
 use tiron_tui::run::{ActionSection, HostSection, RunPanel};
 use uuid::Uuid;
 
-use crate::{action::parse_actions_new, config::Config, node::Node};
+use crate::{action::parse_actions, core::Runbook, node::Node};
 
 pub struct Run {
     pub id: Uuid,
@@ -24,7 +14,7 @@ pub struct Run {
 
 impl Run {
     pub fn from_block(
-        origin: &Origin,
+        runbook: &Runbook,
         name: Option<String>,
         block: &Block,
         hosts: Vec<Node>,
@@ -36,8 +26,14 @@ impl Run {
         };
 
         for host in run.hosts.iter_mut() {
-            let mut job_depth = 0;
-            let actions = parse_actions_new(origin, block, &host.new_vars, &mut job_depth)?;
+            let actions = parse_actions(runbook, block, &host.vars).map_err(|e| {
+                let mut e = e;
+                e.message = format!(
+                    "error when parsing actions for host {}: {}",
+                    host.host, e.message
+                );
+                e
+            })?;
             host.actions = actions;
         }
 
@@ -85,45 +81,5 @@ impl Run {
             })
             .collect();
         RunPanel::new(self.id, self.name.clone(), hosts)
-    }
-}
-
-pub fn value_to_type(value: &Value) -> SourcedType {
-    let type_ = match value {
-        Value::Null => Type::Null,
-        Value::Bool(_) => Type::Bool,
-        Value::Int(_) => Type::Int,
-        Value::String(_, _) => Type::String,
-        Value::List(list) => Type::List(Arc::new(if let Some(v) = list.first() {
-            value_to_type(v)
-        } else {
-            SourcedType::any()
-        })),
-        Value::Set(v) => Type::Set(Arc::new(if let Some(v) = v.first() {
-            value_to_type(v)
-        } else {
-            SourcedType::any()
-        })),
-        Value::Dict(v, _) => {
-            Type::Dict(Arc::new(if let Some((key, value)) = v.first_key_value() {
-                rcl::types::Dict {
-                    key: value_to_type(key),
-                    value: value_to_type(value),
-                }
-            } else {
-                rcl::types::Dict {
-                    key: SourcedType::any(),
-                    value: SourcedType::any(),
-                }
-            }))
-        }
-        Value::Function(f) => Type::Function(f.type_.clone()),
-        Value::BuiltinFunction(f) => Type::Function(Arc::new((f.type_)())),
-        Value::BuiltinMethod(_) => Type::Any,
-    };
-
-    SourcedType {
-        type_,
-        source: rcl::type_source::Source::None,
     }
 }
