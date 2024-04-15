@@ -740,7 +740,7 @@ dependencies = [
 
 [[package]]
 name = "tiron"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "bincode",
@@ -760,7 +760,7 @@ dependencies = [
 
 [[package]]
 name = "tiron-common"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "hcl-edit",
@@ -771,11 +771,11 @@ dependencies = [
 
 [[package]]
 name = "tiron-lsp"
-version = "0.1.5"
+version = "0.1.6"
 
 [[package]]
 name = "tiron-node"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "bincode",
@@ -795,7 +795,7 @@ dependencies = [
 
 [[package]]
 name = "tiron-tui"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
@@ -810,7 +810,7 @@ dependencies = [
 
 [[package]]
 name = "tiron-workspace"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "clap",
