@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="container mx-auto px-4 py-12 flex flex-col lg:flex-row lg:px-12">
+  <div class="w-full flex flex-col lg:w-1/3">
+    <div class="w-full mb-8">
+        <h1 class="text-4xl font-bold mb-4">Reasonable Automation Engine</h1>
+        <p class="text-lg">Tiron is an automation tool that's easy to use and aims to be as fast as possible. It’s agentless by using SSH and has a TUI for the outputs of the tasks.</p>
+    </div>
+    <div class="w-full mb-8 flex flex-col">
+        <pre class="flex flex-col text-sm">
+        <code class="flex flex-row">
+            <span style="color:#A626A4">use </span>
+            <span style="color:#986801">"jobs/job.tr" </span>
+            <span>{ </span>
+        </code>
+        <code class="flex flex-row">
+            <span style="color:#A626A4">  job </span>
+            <span style="color:#986801">"job1" </span>
+            <span>{}</span>
+        </code>
+        <code class="flex flex-row">
+            <span>} </span>
+        </code>
+        <code class="flex flex-row">
+            <span style="color:#A626A4">group </span>
+            <span style="color:#986801">"production" </span>
+            <span>{ </span>
+        </code>
+        <code class="flex flex-row">
+            <span style="color:#A626A4">  host </span>
+            <span style="color:#986801">"machine1" </span>
+            <span>{}</span>
+        </code>
+        <code class="flex flex-row">
+            <span>} </span>
+        </code>
+        <code class="flex flex-row">
+            <span style="color:#A626A4">run </span>
+            <span style="color:#986801">"production" </span>
+            <span>{</span>
+        </code>
+        <code class="flex flex-row">
+            <span style="color:#A626A4">  action </span>
+            <span style="color:#4078F2">"copy" </span>
+            <span>{</span>
+        </code>
+        <code class="flex flex-row">
+            <span style="color:#A626A4">    params </span>
+            <span>{</span>
+        </code>
+        <code class="flex flex-row">
+            <span style="color:#E45649">      src</span>
+            <span> = </span>
+            <span style="color:#50A14F">"src_file"</span>
+        </code>
+        <code class="flex flex-row">
+            <span style="color:#E45649">      dest</span>
+            <span> = </span>
+            <span style="color:#50A14F">"/tmp/dest_path"</span>
+        </code>
+        <code class="flex flex-row">
+            <span>    }</span>
+        </code>
+        <code class="flex flex-row">
+            <span>  }</span>
+        </code>
+        <code class="flex flex-row">
+            <span>}</span>
+        </code>
+        </pre>
+    </div>
+  </div>
+  <div class="flex flex-col items-center w-full lg:w-2/3">
+    <img class="w-full" src="https://github.com/lapce/tiron/assets/1169480/0c53b83e-901b-410e-afc3-3a4aa4917b93">
+  </div>
+</section>
+{% endblock %}
