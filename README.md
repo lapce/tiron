@@ -37,6 +37,35 @@ Run below to install latest Tiron binary to ```/usr/local/bin```
 curl -sL https://tiron.run/install.sh | sh
 ```
 
+## Usage
+
+To run a Tiron runbook
+
+```console
+$ tiron run
+```
+
+Full usage:
+
+```console
+$ tiron -h
+
+A reasonable automation engine
+
+Usage: tiron <COMMAND>
+
+Commands:
+  run     Run Tiron runbooks
+  check   Check Tiron runbooks
+  fmt     Format Tiron runbooks
+  action  Show Tiron action docs
+  help    Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
+```
+
 ## TUI Navigation
 
 | Key                               | Action                |
