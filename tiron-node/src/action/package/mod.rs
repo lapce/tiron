@@ -30,8 +30,11 @@ pub struct PackageAction {
     /// the name of the packages to be installed
     name: Vec<String>,
     /// Whether to install or remove or update packages
+    ///
     /// `present` to install
+    ///
     /// `absent` to remove
+    ///
     /// `latest` to update
     state: PackageState,
 }

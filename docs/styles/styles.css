@@ -7,19 +7,31 @@
   }
   
   .markdown-content h1 {
-    @apply text-4xl font-bold max-w-3xl mx-auto mb-6;
+    @apply text-4xl font-bold w-full mx-auto mb-6;
   }
   
   .markdown-content h3 {
-    @apply text-2xl font-semibold max-w-3xl w-full mx-auto mt-5;
+    @apply text-2xl font-semibold w-full mx-auto mt-5;
+  }
+  
+  .markdown-content h4 {
+    @apply text-xl font-semibold w-full mx-auto mt-5;
   }
   
   .markdown-content p {
-    @apply max-w-3xl w-full mx-auto mt-5;
+    @apply w-full mx-auto mt-5;
   }
   
   .markdown-content code {
-    @apply bg-gray-200 px-1.5 rounded;
+    @apply bg-gray-100 px-1.5 rounded;
+  }
+  
+  .markdown-content pre {
+    @apply relative overflow-auto rounded-md w-full mt-5
+  }
+  
+  .markdown-content pre code {
+    @apply bg-gray-100 block py-2 px-2 w-full
   }
   
   .markdown-content a {
@@ -28,5 +40,29 @@
   
   .markdown-content a:hover {
     @apply text-pink-400 underline;
+  }
+  
+  .markdown-content table {
+    @apply w-full rounded-xl border mt-5
+  }
+  
+  .markdown-content table thead {
+    @apply bg-gray-100
+  }
+  
+  .markdown-content table th {
+    @apply py-4 px-4 text-left
+  }
+  
+  .markdown-content table th:not(:first-child) {
+    @apply border-l
+  }
+  
+  .markdown-content table td {
+    @apply py-4 px-4 border-t leading-relaxed
+  }
+  
+  .markdown-content table td:not(:first-child) {
+    @apply border-l
   }
 }

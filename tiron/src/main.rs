@@ -1,3 +1,5 @@
 fn main() {
-    tiron::core::cmd()
+    if let Err(e) = tiron::core::cmd() {
+        let _ = e.report_stderr();
+    }
 }

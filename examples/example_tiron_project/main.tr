@@ -1,71 +1,78 @@
 use "jobs/job1/main.tr" {
-    job "job1" {
-    }
+  job "job1" {  }
 }
 
 use "tiron.tr" {
-    group "group2" {}
+  group "group2" {  }
 }
 
 group "production" {
-    host "localhost" {
-        apache = "apache2"
-    }
+  host "localhost" {
+    apache = "apache2"
+  }
 }
 
 group "gropu3" {
-    group "group2" {}
+  group "group2" {  }
 }
 
 run "production" {
-    name        = "initial run"
-    remote_user = "dz"
-    become      = true
-        
-    action "package" {
-        params {
-            name  = [apache, "mariadb-connector-c", "${apache}"]
-            state = "present"
-        }
+  name = "initial run"
+  remote_user = "dz"
+  become = true
+
+  action "package" {
+    params {
+      name = [
+        apache,
+        "mariadb-connector-c",
+        "${apache}"
+      ]
+      state = "present"
     }
-        
-    action "copy" {
-        params {
-            src  = "/tmp/test.tr" 
-            dest = "/tmp/test.conf"
-        }
+  }
+
+  action "copy" {
+    params {
+      src = "/tmp/test.tr"
+      dest = "/tmp/test.conf"
     }
-        
-    action "job" {
-        name = "run job1"
-        params {
-            name = "job1"
-        } 
+  }
+
+  action "job" {
+    name = "run job1"
+
+    params {
+      name = "job1"
     }
+  }
 }
 
 run "group2" {
-    remote_user = "dz"
-        
-    action "job" {
-        params {
-            name = "job1"
-        }
+  remote_user = "dz"
+
+  action "job" {
+    params {
+      name = "job1"
     }
-    action "copy" {
-        params {
-            src  = "/tmp/test.tr" 
-            dest = "/tmp/test.conf"
-        }
+  }
+
+  action "copy" {
+    params {
+      src = "/tmp/test.tr"
+      dest = "/tmp/test.conf"
     }
-    action "job" {
-        params {
-            name = "job1"
-        }
+  }
+
+  action "job" {
+    params {
+      name = "job1"
     }
-    action "job" {
-        params {
-            name = "job1"
-        }
+  }
+
+  action "job" {
+    params {
+      name = "job1"
     }
+  }
 }

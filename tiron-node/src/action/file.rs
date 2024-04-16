@@ -21,7 +21,7 @@ pub enum FileState {
 pub struct FileAction {
     /// Path of the file or folder that's managed
     path: String,
-    /// Default to file
+    /// Default to `file`<br>
     ///
     /// If `file`, a file will be managed.
     ///

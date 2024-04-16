@@ -11,6 +11,15 @@
 </head>
 
 <body>
+  <header class="w-full border-b flex flex-row h-[64px] sticky top-0 z-10 w-full flex-none shadow-thinbottom lg:z-10 dark:shadow-light/1 bg-white dark:bg-dark">
+    <div class="container mx-auto gap-4 grid grid-flow-col auto-cols-[auto_auto_1fr_auto] h-16 items-center align-center justify-between px-4 sm:px-6 md:px-8 page-full-width:max-w-full">
+      <a class="group/headerlogo flex-1 flex flex-row items-center shrink-0" href="/docs">
+        <h1 class="text-pretty line-clamp-3 leading-[1.1] tracking-tight max-w-[18ch] lg:max-w-[24ch] lg:text-lg/tight font-semibold ms-3 text-dark dark:text-light">
+          Tiron Docs
+        </h1>
+      </a>
+    </div>
+  </header>
   <section class="section">
     <div class="container mx-auto">
       {% block content %} {% endblock %}
