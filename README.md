@@ -37,5 +37,20 @@ Run below to install latest Tiron binary to ```/usr/local/bin```
 curl -sL https://tiron.run/install.sh | sh
 ```
 
+## TUI Navigation
+
+| Key                               | Action                |
+| --------------------------------- | ------------          |
+| <kbd>j</kbd>                      | Scroll down           |
+| <kbd>k</kbd>                      | Scroll up             |
+| <kbd>d</kbd>                      | Page down             |
+| <kbd>u</kbd>                      | Page up               |
+| <kbd>g</kbd>                      | Jump to top           |
+| <kbd>G</kbd>                      | Jump to bottom        |
+| <kbd>n</kbd>                      | Next Host             |
+| <kbd>p</kbd>                      | Previous Host         |
+| <kbd>Ctrl+n</kbd>                 | Next Run              |
+| <kbd>Ctrl+p</kbd>                 | Previous Run          |
+
 ## License
 Tiron is licensed under the Apache 2.0 license.
