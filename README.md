@@ -38,6 +38,8 @@ Run below to install latest Tiron binary to ```/usr/local/bin```
 curl -sL https://tiron.run/install.sh | sh
 ```
 
+More information can be found in the [docs](https://tiron.run/docs/getting-started/overview/).
+
 ## Usage
 
 To run a Tiron runbook
