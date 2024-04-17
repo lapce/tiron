@@ -2,18 +2,29 @@
   
 {% block header %}
 <header class="w-full border-b flex flex-row h-[64px] sticky top-0 z-10 w-full flex-none shadow-thinbottom lg:z-10 dark:shadow-light/1 bg-white dark:bg-dark">
-<div class="container mx-auto gap-4 grid grid-flow-col auto-cols-[auto_auto_1fr_auto] h-16 items-center align-center justify-between px-4 sm:px-6 md:px-8 page-full-width:max-w-full">
-    <a class="group/headerlogo flex-1 flex flex-row items-center shrink-0" href="/docs">
-    <h1 class="text-pretty line-clamp-3 leading-[1.1] tracking-tight max-w-[18ch] lg:max-w-[24ch] lg:text-lg/tight font-semibold ms-3 text-dark dark:text-light">
-        Tiron Docs
-    </h1>
-    </a>
-</div>
+    <div class="container mx-auto gap-4 grid grid-flow-col auto-cols-[auto_auto_1fr_auto] h-16 items-center align-center justify-between px-4 sm:px-6 md:px-8">
+        <div>
+            <a class="group/headerlogo flex-1 flex flex-row items-center shrink-0" href="/docs/">
+            <h1 class="text-pretty line-clamp-3 leading-[1.1] tracking-tight text-2xl font-semibold text-dark dark:text-light">
+                Tiron Docs
+            </h1>
+            </a>
+        </div>
+        <div class="text-lg">
+            <ul class="flex flex-row items-center gap-4">
+                <li>
+                    <a href="/">
+                    Home
+                    </a>
+                <li>
+            </ul>
+        </div>
+    </div>
 </header>
 {% endblock %}
 
 {% block content %}
-<div class="flex flex-col lg:flex-row px-4 sm:px-6 md:px-8 max-w-screen-2xl mx-auto page-full-width:max-w-full min-h-[calc(100vh-64px)]">
+<div class="container mx-auto flex flex-col lg:flex-row px-4 sm:px-6 md:px-8 max-w-screen-2xl mx-auto page-full-width:max-w-full min-h-[calc(100vh-64px)]">
     <aside class=" overflow-y-auto relative group flex flex-col basis-full bg-light grow-0 shrink-0 shadow-thinbottom navigation-open:shadow-dark/2 z-[1] top-0 h-[100vh] lg:basis-72 lg:navigation-open:border-b-0 lg:sticky dark:bg-dark dark:navigation-open:shadow-light/2 lg:h-[calc(100vh_-_4rem)] lg:top-16 page-no-toc:lg:hidden">
         <div class="pt-4 lg:flex flex-grow flex-col lg:gutter-stable lg:pr-2 group-hover:[&::-webkit-scrollbar]:bg-dark/1 group-hover:[&::-webkit-scrollbar-thumb]:bg-dark/3 [&::-webkit-scrollbar]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-transparent dark:[&::-webkit-scrollbar]:bg-transparent dark:[&::-webkit-scrollbar-thumb]:bg-transparent dark:group-hover:[&::-webkit-scrollbar]:bg-light/1 dark:group-hover:[&::-webkit-scrollbar-thumb]:bg-light/3 navigation-open:flex lg:-ml-5 lg:pb-16">
             {% set section = get_section(path="docs/_index.md") %}

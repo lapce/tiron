@@ -4,6 +4,7 @@
 
 @layer components {
   .markdown-content {
+    @apply text-gray-800
   }
   
   .markdown-content h1 {
@@ -15,7 +16,7 @@
   }
   
   .markdown-content h4 {
-    @apply text-xl font-semibold w-full mx-auto mt-5;
+    @apply text-lg font-semibold w-full mx-auto mt-5;
   }
   
   .markdown-content p {
@@ -35,7 +36,7 @@
   }
   
   .markdown-content a {
-    @apply text-pink-500;
+    @apply text-blue-500 underline;
   }
   
   .markdown-content a:hover {
